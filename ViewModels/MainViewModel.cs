@@ -27,13 +27,23 @@ public class MainViewModel : ObservableObject
     /// <summary>Running app version (from the assembly), e.g. "v0.2.1" — shown in the header.</summary>
     public string AppVersion => "v" + UpdateChecker.CurrentVersion;
 
-    public MainViewModel()
+    public MainViewModel(string? addonsOverride = null)
     {
         _installer = new AddonInstaller(_client);
         _settings = _settingsStore.Load();
-        var (path, found) = AddonsLocator.Resolve(_settings.AddonsPathOverride);
-        AddonsPath = path;
-        AddonsFolderFound = found;
+        if (!string.IsNullOrWhiteSpace(addonsOverride))
+        {
+            // Transient override from the --addons CLI flag (e.g. a clean sandbox folder). Not persisted.
+            try { Directory.CreateDirectory(addonsOverride); } catch { /* best effort */ }
+            AddonsPath = addonsOverride;
+            AddonsFolderFound = Directory.Exists(addonsOverride);
+        }
+        else
+        {
+            var (path, found) = AddonsLocator.Resolve(_settings.AddonsPathOverride);
+            AddonsPath = path;
+            AddonsFolderFound = found;
+        }
 
         InstalledView = CollectionViewSource.GetDefaultView(Installed);
         InstalledView.Filter = o => PassesFilter(((InstalledAddon)o).IsLibrary);

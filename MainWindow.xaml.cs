@@ -9,11 +9,12 @@ namespace EsoAddons;
 
 public partial class MainWindow : Window
 {
-    private readonly MainViewModel _vm = new();
+    private readonly MainViewModel _vm;
 
-    public MainWindow()
+    public MainWindow(string? addonsOverride = null)
     {
         InitializeComponent();
+        _vm = new MainViewModel(addonsOverride);
         DataContext = _vm;
         Loaded += async (_, _) =>
         {

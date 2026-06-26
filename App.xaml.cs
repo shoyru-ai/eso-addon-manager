@@ -19,7 +19,10 @@ public partial class App : Application
             return;
         }
 
-        new MainWindow().Show();
+        // Optional folder override (used to give the sandbox a clean, junction-free AddOns folder):
+        //   "Shoyru's ESO Addons.exe" --addons "C:\path\to\AddOns"
+        var addonsOverride = CliArgs.GetOption(e.Args, "--addons");
+        new MainWindow(addonsOverride).Show();
     }
 
     private async Task RunSelfUpdateAsync()
