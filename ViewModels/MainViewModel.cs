@@ -382,9 +382,12 @@ public class MainViewModel : ObservableObject
             await _installer.InstallFromUrlAsync(p.DownloadUrl, AddonsPath);
             _state.Set(p.Name, p.Version); _state.Save();
             RescanInstalled();
+            // Auto-install any required libraries the addon declares (## DependsOn), e.g. LibAddonMenu-2.0 —
+            // same as the Browse tab. Without this a custom addon crashes in-game if a dep is missing.
+            var deps = await EnsureDependenciesForAsync(new[] { p.Name });
             RefreshMyAddonStatus();
             p.Status = "";
-            Status = $"Installed {p.Title}.";
+            Status = deps > 0 ? $"Installed {p.Title} (+{deps} required library/ies)." : $"Installed {p.Title}.";
         }
         catch (Exception ex) { p.Status = "Failed"; Status = $"Install failed: {ex.Message}"; }
     }
