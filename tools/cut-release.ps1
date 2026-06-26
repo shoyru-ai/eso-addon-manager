@@ -30,7 +30,7 @@ Shoyru's ESO Addons - a lightweight addon manager for The Elder Scrolls Online
 ==============================================================================
 
 HOW TO RUN
-  Double-click "Shoyru's ESO Addons.exe". Nothing to install (.NET is bundled).
+  Double-click "Shoyru ESO Addons.exe". Nothing to install (.NET is bundled).
   First launch: Windows SmartScreen may warn (unsigned) -> More info -> Run anyway.
 
 REQUIREMENTS
@@ -48,7 +48,7 @@ Data comes from the public ESOUI (mmoui) API. No account needed.
 
 # Clean-named assets (no apostrophe/space) for the release
 $assetExe = Join-Path $dist "Shoyrus-ESO-Addons.exe"
-Copy-Item (Join-Path $app "Shoyru's ESO Addons.exe") $assetExe -Force
+Copy-Item (Join-Path $app "Shoyru ESO Addons.exe") $assetExe -Force
 $zip = Join-Path $dist "Shoyrus-ESO-Addons-v$Version.zip"
 Compress-Archive -Path (Join-Path $app '*') -DestinationPath $zip -Force
 

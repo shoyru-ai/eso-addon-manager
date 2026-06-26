@@ -17,11 +17,17 @@ public partial class MainWindow : Window
         DataContext = _vm;
         Loaded += async (_, _) =>
         {
+            Diag.Log($"Loaded fired. version={UpdateChecker.CurrentVersion} autoupdate_env={Environment.GetEnvironmentVariable("ESOADDONS_AUTOUPDATE")}");
             await _vm.LoadAsync();
+            Diag.Log("LoadAsync done. checking for app update…");
             await _vm.CheckForAppUpdateAsync();
+            Diag.Log($"update check done. available={_vm.AppUpdateAvailable} latest={_vm.AppUpdateVersion} exeUrl={_vm.AppUpdateExeUrl}");
             // Test/headless hook: auto-apply an available update when ESOADDONS_AUTOUPDATE=1.
             if (_vm.AppUpdateAvailable && Environment.GetEnvironmentVariable("ESOADDONS_AUTOUPDATE") == "1")
+            {
+                Diag.Log("auto-update hook firing…");
                 await ApplyAppUpdateAsync();
+            }
         };
     }
 
@@ -43,10 +49,14 @@ public partial class MainWindow : Window
     private async System.Threading.Tasks.Task ApplyAppUpdateAsync()
     {
         var url = _vm.AppUpdateExeUrl;
+        Diag.Log($"ApplyAppUpdateAsync url={url}");
         if (string.IsNullOrEmpty(url)) { OpenUrl(_vm.AppUpdateReleaseUrl); return; }
 
         _vm.Status = $"Downloading update v{_vm.AppUpdateVersion}…";
-        var ok = await AppUpdater.DownloadAndApplyAsync(url);
+        bool ok;
+        try { ok = await AppUpdater.DownloadAndApplyAsync(url); }
+        catch (Exception ex) { Diag.Log("AppUpdater threw: " + ex); ok = false; }
+        Diag.Log($"DownloadAndApplyAsync returned {ok}");
         if (ok) Application.Current.Shutdown();
         else { _vm.Status = "Auto-update failed — opening the download page."; OpenUrl(_vm.AppUpdateReleaseUrl); }
     }
