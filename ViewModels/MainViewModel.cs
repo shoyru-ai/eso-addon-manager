@@ -24,6 +24,9 @@ public class MainViewModel : ObservableObject
     private IReadOnlyList<EsouiAddon> _catalog = Array.Empty<EsouiAddon>();
     private Dictionary<string, EsouiAddon> _catalogByDir = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Running app version (from the assembly), e.g. "v0.2.1" — shown in the header.</summary>
+    public string AppVersion => "v" + UpdateChecker.CurrentVersion;
+
     public MainViewModel()
     {
         _installer = new AddonInstaller(_client);
