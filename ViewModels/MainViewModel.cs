@@ -219,7 +219,13 @@ public class MainViewModel : ObservableObject
     private InstalledAddon? _detailRemoveTarget;
     public InstalledAddon? DetailRemoveTarget { get => _detailRemoveTarget; set => SetProperty(ref _detailRemoveTarget, value); }
 
-    public string SearchText { get; set; } = "";
+    private string _searchText = "";
+    /// <summary>Browse filter text. Setting it live-filters the already-loaded catalog (no network call).</summary>
+    public string SearchText
+    {
+        get => _searchText;
+        set { if (SetProperty(ref _searchText, value)) ApplyBrowse(); }
+    }
 
     private string _status = "Ready.";
     public string Status { get => _status; set => SetProperty(ref _status, value); }
