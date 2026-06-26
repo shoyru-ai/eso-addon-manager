@@ -46,7 +46,7 @@ public class MainViewModel : ObservableObject
         }
 
         InstalledView = CollectionViewSource.GetDefaultView(Installed);
-        InstalledView.Filter = o => PassesFilter(((InstalledAddon)o).IsLibrary);
+        InstalledView.Filter = o => InstalledPasses((InstalledAddon)o);
         BrowseView = CollectionViewSource.GetDefaultView(SearchResults);
         BrowseView.Filter = o => PassesFilter(((EsouiAddon)o).IsLibrary);
 
@@ -155,6 +155,25 @@ public class MainViewModel : ObservableObject
         AddonFilter.Libraries => isLibrary,
         _ => true,
     };
+
+    /// <summary>Installed-tab row visibility: Addons/Libraries filter AND the live search text.</summary>
+    private bool InstalledPasses(InstalledAddon a)
+    {
+        if (!PassesFilter(a.IsLibrary)) return false;
+        var q = InstalledSearchText.Trim();
+        if (q.Length == 0) return true;
+        return a.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || a.Author.Contains(q, StringComparison.OrdinalIgnoreCase)
+            || a.FolderName.Contains(q, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string _installedSearchText = "";
+    /// <summary>Installed-tab filter text. Setting it live-filters the installed list (no network).</summary>
+    public string InstalledSearchText
+    {
+        get => _installedSearchText;
+        set { if (SetProperty(ref _installedSearchText, value)) InstalledView.Refresh(); }
+    }
 
     // ---- selection ----
     private InstalledAddon? _selectedInstalled;

@@ -123,9 +123,16 @@
                             <TextBlock Margin="10,8" TextWrapping="Wrap" Foreground="{StaticResource Text}"
                                        Text="Couldn't find your ESO AddOns folder. Click 'Change folder…' (top-right) and select your  …\Elder Scrolls Online\live\AddOns  folder."/>
                         </Border>
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="12,12,12,8">
-                            <TextBlock Text="{Binding UpdateSummary}" FontSize="13" Foreground="{StaticResource Muted}"/>
-                            <Button Content="Update All" Style="{StaticResource Update}" Command="{Binding UpdateAllCommand}" Margin="14,0,0,0"/>
+                        <StackPanel Grid.Row="1" Margin="12,12,12,8">
+                            <DockPanel Margin="0,0,0,8">
+                                <TextBlock Text="Search:" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,8,0" DockPanel.Dock="Left"/>
+                                <TextBox Text="{Binding InstalledSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Filter your installed addons by name, author, or folder"/>
+                            </DockPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding UpdateSummary}" FontSize="13" Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
+                                <Button Content="Update All" Style="{StaticResource Update}" Command="{Binding UpdateAllCommand}" Margin="14,0,0,0"/>
+                            </StackPanel>
                         </StackPanel>
                         <DataGrid Grid.Row="2" ItemsSource="{Binding InstalledView}" SelectedItem="{Binding SelectedInstalled}" Margin="6,0,6,6">
                             <DataGrid.Columns>
