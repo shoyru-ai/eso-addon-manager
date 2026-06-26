@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>EsoAddons</RootNamespace>
     <AssemblyName>Shoyru's ESO Addons</AssemblyName>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <ApplicationIcon>appicon.ico</ApplicationIcon>
   </PropertyGroup>
 
