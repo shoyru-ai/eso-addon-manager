@@ -49,6 +49,83 @@ public partial class MainWindow : Window
 
     private void WhatsNew_Click(object sender, RoutedEventArgs e) => ShowWhatsNew();
 
+    // ---- Custom Addons password gate ----
+    private void MainTabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        // Only react to the TabControl's own selection (this event also bubbles up from inner lists/grids).
+        if (!ReferenceEquals(e.OriginalSource, MainTabs)) return;
+        if (ReferenceEquals(MainTabs.SelectedItem, CustomAddonsTab) && !_vm.CustomAddonsUnlocked)
+            PromptCustomAddonsPassword();
+    }
+
+    private void UnlockCustomAddons_Click(object sender, RoutedEventArgs e) => PromptCustomAddonsPassword();
+
+    /// <summary>Modal password prompt for the Custom Addons tab. Unlocks for the rest of the session.</summary>
+    private void PromptCustomAddonsPassword()
+    {
+        if (_vm.CustomAddonsUnlocked) return;
+
+        Brush B(string key, string fallback) =>
+            TryFindResource(key) as Brush ?? (Brush)new BrushConverter().ConvertFromString(fallback)!;
+
+        var win = new Window
+        {
+            Title = "Password Required",
+            Width = 400, Height = 220,
+            Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = B("Bg", "#1E1E1E"),
+            FontFamily = new FontFamily("Segoe UI"),
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false,
+        };
+
+        var grid = new Grid { Margin = new Thickness(18) };
+        for (int i = 0; i < 4; i++) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var label = new TextBlock
+        {
+            Text = "Enter the password to unlock Shoyru's Custom Addons:",
+            Foreground = B("Text", "#E6E6E6"), TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        Grid.SetRow(label, 0); grid.Children.Add(label);
+
+        var pw = new PasswordBox { FontSize = 14, Padding = new Thickness(6, 5, 6, 5) };
+        Grid.SetRow(pw, 1); grid.Children.Add(pw);
+
+        var error = new TextBlock
+        {
+            Foreground = B("Danger", "#E06C6C"), Margin = new Thickness(0, 8, 0, 0),
+            Visibility = Visibility.Collapsed,
+        };
+        Grid.SetRow(error, 2); grid.Children.Add(error);
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 16, 0, 0),
+        };
+        var ok = new Button { Content = "Unlock", Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+        if (TryFindResource("Primary") is Style ps) ok.Style = ps;
+        var cancel = new Button { Content = "Cancel", IsCancel = true };
+        if (TryFindResource("Ghost") is Style gs) cancel.Style = gs;
+        buttons.Children.Add(ok); buttons.Children.Add(cancel);
+        Grid.SetRow(buttons, 3); grid.Children.Add(buttons);
+
+        void Attempt()
+        {
+            if (_vm.CustomAddonsUnlocked) return;
+            if (AccessGate.IsCorrect(pw.Password)) { _vm.CustomAddonsUnlocked = true; win.DialogResult = true; }
+            else { error.Text = "Incorrect password. Try again."; error.Visibility = Visibility.Visible; pw.Clear(); pw.Focus(); }
+        }
+        ok.Click += (_, _) => Attempt();
+
+        win.Content = grid;
+        win.Loaded += (_, _) => pw.Focus();
+        win.ShowDialog();
+    }
+
     /// <summary>Closeable in-app dialog showing the new version's release notes (instead of opening the repo).</summary>
     private void ShowWhatsNew()
     {

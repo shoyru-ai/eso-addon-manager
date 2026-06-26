@@ -27,6 +27,14 @@ public class MainViewModel : ObservableObject
     /// <summary>Running app version (from the assembly), e.g. "v0.2.1" — shown in the header.</summary>
     public string AppVersion => "v" + UpdateChecker.CurrentVersion;
 
+    private bool _customAddonsUnlocked;
+    /// <summary>Whether the password gate on the Custom Addons tab has been passed this session.</summary>
+    public bool CustomAddonsUnlocked
+    {
+        get => _customAddonsUnlocked;
+        set => SetProperty(ref _customAddonsUnlocked, value);
+    }
+
     public MainViewModel(string? addonsOverride = null)
     {
         _installer = new AddonInstaller(_client);

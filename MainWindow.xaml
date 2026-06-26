@@ -109,7 +109,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- LISTS -->
-            <TabControl Grid.Column="0" Background="Transparent" BorderThickness="0">
+            <TabControl x:Name="MainTabs" Grid.Column="0" Background="Transparent" BorderThickness="0" SelectionChanged="MainTabs_SelectionChanged">
                 <!-- Installed -->
                 <TabItem Header="Installed">
                     <Grid Background="{StaticResource Panel}">
@@ -256,7 +256,7 @@
                 </TabItem>
 
                 <!-- Shoyru's published addons -->
-                <TabItem Header="Shoyru's Custom Addons">
+                <TabItem x:Name="CustomAddonsTab" Header="Shoyru's Custom Addons">
                     <Grid Background="{StaticResource Panel}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -322,6 +322,18 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
+
+                        <!-- Password gate overlay (covers the tab until unlocked for this session) -->
+                        <Border Grid.RowSpan="2" Background="{StaticResource Panel}"
+                                Visibility="{Binding CustomAddonsUnlocked, Converter={StaticResource InvBoolToVis}}">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="380" Margin="20">
+                                <TextBlock Text="&#x1F512;" FontSize="40" HorizontalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                                <TextBlock Text="Shoyru's Custom Addons" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,8,0,4" Foreground="{StaticResource Text}"/>
+                                <TextBlock Text="This tab is password-protected. Enter the access password to view and install Shoyru's custom addons."
+                                           TextWrapping="Wrap" TextAlignment="Center" Foreground="{StaticResource Muted}" Margin="0,0,0,16"/>
+                                <Button Content="Enter Password" Style="{StaticResource Primary}" HorizontalAlignment="Center" Click="UnlockCustomAddons_Click"/>
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </TabItem>
             </TabControl>
