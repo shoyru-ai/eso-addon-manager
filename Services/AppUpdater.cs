@@ -5,9 +5,10 @@ using System.Linq;
 namespace EsoAddons.Services;
 
 /// <summary>Applies an app self-update. Writes a tiny helper that, after THIS process exits,
-/// downloads the new single-file exe, swaps it in (with retries — the exe can stay locked for a
-/// moment after exit), and relaunches. Because the download runs in the helper, the app can close
-/// immediately instead of waiting on a ~70 MB download.</summary>
+/// downloads the new single-file exe and swaps it in by RENAME (the new exe is downloaded into the
+/// same folder as the running exe, then atomically renamed into place — never byte-copied over the
+/// live exe, which previously corrupted the file while Windows still had it memory-mapped). Then it
+/// relaunches. The download runs in the helper so the app can close immediately.</summary>
 public static class AppUpdater
 {
     /// <summary>Returns true if the helper was started (caller should then shut the app down right away).</summary>
@@ -20,7 +21,11 @@ public static class AppUpdater
 
         var pid     = Environment.ProcessId;
         var log     = Diag.LogPath;
-        var tempExe = Path.Combine(Path.GetTempPath(), "ESOAddons.update.exe");
+        // Stage the download + backup IN THE SAME FOLDER as the running exe so the swap is a
+        // same-volume rename (atomic, no byte copy → no corruption).
+        var exeDir  = Path.GetDirectoryName(current)!;
+        var tempExe = Path.Combine(exeDir, "ESOAddons.update.exe");
+        var backup  = Path.Combine(exeDir, "ESOAddons.previous.exe");
         var cmdPath = Path.Combine(Path.GetTempPath(), "ESOAddons.update.cmd");
 
         // Preserve the original launch args (e.g. --addons "<clean folder>") so the relaunched
@@ -50,25 +55,34 @@ for %%A in (""{tempExe}"") do set sz=%%~zA
 echo helper: downloaded size=%sz% >> ""{log}""
 if %sz% LSS 1000000 (
   echo helper: download failed/too small - relaunching current build >> ""{log}""
+  del ""{tempExe}"" >nul 2>&1
   {relaunch}
   goto cleanup
 )
+REM Swap by RENAME within the same folder (atomic, no byte copy = no corruption).
 set tries=0
-:copyloop
-copy /Y ""{tempExe}"" ""{current}"" >nul 2>&1
-if not errorlevel 1 goto copied
+:swaploop
+del ""{backup}"" >nul 2>&1
+move /Y ""{current}"" ""{backup}"" >nul 2>&1
+if exist ""{current}"" goto swapretry
+move /Y ""{tempExe}"" ""{current}"" >nul 2>&1
+if exist ""{current}"" goto swapped
+move /Y ""{backup}"" ""{current}"" >nul 2>&1
+:swapretry
 set /a tries+=1
-echo helper: copy locked, retry %tries% >> ""{log}""
-if %tries% GEQ 20 (
-  echo helper: copy still failing - relaunching current build >> ""{log}""
+echo helper: swap not ready, retry %tries% >> ""{log}""
+if %tries% GEQ 25 (
+  echo helper: swap failed - relaunching available build >> ""{log}""
+  if not exist ""{current}"" move /Y ""{backup}"" ""{current}"" >nul 2>&1
   {relaunch}
   goto cleanup
 )
 ping -n 2 127.0.0.1 >nul
-goto copyloop
-:copied
-echo helper: swapped OK - relaunching new build >> ""{log}""
+goto swaploop
+:swapped
+echo helper: swapped by rename - relaunching new build >> ""{log}""
 {relaunch}
+del ""{backup}"" >nul 2>&1
 :cleanup
 del ""{tempExe}"" >nul 2>&1
 (goto) 2>nul & del ""%~f0""
