@@ -20,9 +20,12 @@ if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 New-Item -ItemType Directory -Force $app | Out-Null
 
 Write-Host "Building self-contained single-file v$Version ..." -ForegroundColor Cyan
+# NOTE: EnableCompressionInSingleFile is intentionally OFF. The compressed/self-extracting
+# bundle trips Windows Defender's ML heuristic (Trojan:Win32/Ulthar.A!ml false positive).
+# Uncompressed single-file scans clean (verified 2026-06-26). Bigger exe (~154 MB) but downloadable.
 dotnet publish $proj -c Release -r win-x64 --self-contained true `
     -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-    -p:EnableCompressionInSingleFile=true -p:Version=$Version -o $app | Out-Null
+    -p:EnableCompressionInSingleFile=false -p:Version=$Version -o $app | Out-Null
 Remove-Item (Join-Path $app "*.pdb") -Force -ErrorAction SilentlyContinue
 
 @"
