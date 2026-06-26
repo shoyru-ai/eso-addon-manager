@@ -51,18 +51,23 @@ public class AddonInstaller
         return topDirs.ToList();
     }
 
-    /// <summary>Removes an installed addon's folder. Refuses to touch junctions (your custom/repo addons).</summary>
+    /// <summary>Removes an installed addon from the live AddOns folder. For a junction (a linked
+    /// custom/dev addon) it removes ONLY the link — your source folder is left untouched.</summary>
     public static (bool ok, string message) Uninstall(InstalledAddon addon)
     {
         if (!Directory.Exists(addon.Path))
             return (false, "Folder no longer exists.");
 
-        var attr = File.GetAttributes(addon.Path);
-        if (attr.HasFlag(FileAttributes.ReparsePoint))
-            return (false, $"'{addon.FolderName}' is a junction (a custom/linked addon). Not removing it to protect your source.");
-
         try
         {
+            var attr = File.GetAttributes(addon.Path);
+            if (attr.HasFlag(FileAttributes.ReparsePoint))
+            {
+                // Junction: delete the link only (non-recursive). Verified not to touch the target's contents.
+                Directory.Delete(addon.Path, recursive: false);
+                return (true, $"Unlinked {addon.Title} from AddOns (your source folder was left untouched).");
+            }
+
             Directory.Delete(addon.Path, recursive: true);
             return (true, $"Removed {addon.Title}.");
         }

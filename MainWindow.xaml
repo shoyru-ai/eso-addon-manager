@@ -228,8 +228,12 @@
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                                 <TextBlock Text="{Binding Status}" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,8,0"/>
-                                                <TextBlock Text="✓ Installed" Foreground="{StaticResource Good}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                <TextBlock Text="✓ Installed" Foreground="{StaticResource Good}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"
                                                            Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVis}}"/>
+                                                <Button Content="Remove" Style="{StaticResource Ghost}" Padding="10,4"
+                                                        Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVis}}"
+                                                        Command="{Binding DataContext.RemoveBrowseCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"/>
                                                 <Button Content="Install" Style="{StaticResource Primary}" Padding="10,4"
                                                         Visibility="{Binding IsInstalled, Converter={StaticResource InvBoolToVis}}"
                                                         Command="{Binding DataContext.InstallCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
@@ -341,9 +345,12 @@
                                 <Button Content="Install" Style="{StaticResource Primary}" Margin="0,0,6,0"
                                         Visibility="{Binding ShowInstall, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding InstallCommand}" CommandParameter="{Binding DetailInstallTarget}"/>
-                                <TextBlock Text="✓ Installed — manage it in the Installed tab" Foreground="{StaticResource Good}" FontWeight="SemiBold"
-                                           VerticalAlignment="Center" Margin="0,0,6,0" TextWrapping="Wrap"
+                                <TextBlock Text="✓ Installed" Foreground="{StaticResource Good}" FontWeight="SemiBold"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"
                                            Visibility="{Binding BrowseDetailInstalled, Converter={StaticResource BoolToVis}}"/>
+                                <Button Content="Remove" Style="{StaticResource Ghost}" Margin="0,0,6,0"
+                                        Visibility="{Binding BrowseDetailInstalled, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding RemoveBrowseCommand}" CommandParameter="{Binding DetailInstallTarget}"/>
                                 <Button Content="Update" Style="{StaticResource Update}" Margin="0,0,6,0"
                                         Visibility="{Binding DetailUpdateAvailable, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding UpdateCommand}" CommandParameter="{Binding DetailRemoveTarget}"/>

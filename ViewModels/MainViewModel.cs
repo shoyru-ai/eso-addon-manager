@@ -47,6 +47,7 @@ public class MainViewModel : ObservableObject
         RemoveMyAddonCommand = new AsyncRelayCommand(a => RemoveMyAddonAsync((PublishedAddon)a!), a => a is PublishedAddon);
         OpenMyAddonsRepoCommand = new RelayCommand(_ => OpenUrl("https://github.com/shoyru-ai/shoyru-eso-addons"));
         InstallCommand = new AsyncRelayCommand(a => InstallAsync((EsouiAddon)a!), a => a is EsouiAddon);
+        RemoveBrowseCommand = new AsyncRelayCommand(a => RemoveBrowseAsync((EsouiAddon)a!), a => a is EsouiAddon);
         UpdateCommand = new AsyncRelayCommand(a => UpdateAsync((InstalledAddon)a!), a => a is InstalledAddon ia && ia.UpdateAvailable);
         RemoveCommand = new AsyncRelayCommand(a => RemoveAsync((InstalledAddon)a!), a => a is InstalledAddon);
         UpdateAllCommand = new AsyncRelayCommand(_ => UpdateAllAsync(), _ => UpdateCount > 0);
@@ -98,6 +99,7 @@ public class MainViewModel : ObservableObject
     public ICommand RefreshCommand { get; }
     public ICommand SearchCommand { get; }
     public ICommand InstallCommand { get; }
+    public ICommand RemoveBrowseCommand { get; }
     public ICommand UpdateCommand { get; }
     public ICommand RemoveCommand { get; }
     public ICommand UpdateAllCommand { get; }
@@ -349,10 +351,53 @@ public class MainViewModel : ObservableObject
     private Task RemoveMyAddonAsync(PublishedAddon p)
     {
         var inst = Installed.FirstOrDefault(i => i.FolderName.Equals(p.Name, StringComparison.OrdinalIgnoreCase));
-        if (inst is null) return Task.CompletedTask;
+        if (inst is null) { Status = $"{p.Title} isn't in your AddOns folder."; return Task.CompletedTask; }
         var (ok, msg) = AddonInstaller.Uninstall(inst);
         Status = msg;
-        if (ok) { RescanInstalled(); RefreshMyAddonStatus(); }
+        if (ok)
+        {
+            RescanInstalled();
+            RefreshMyAddonStatus();
+            ApplyBrowse();
+            // refresh the detail pane if this addon is the one on show
+            if (ReferenceEquals(_selectedMyAddon, p) || ReferenceEquals(_detailMyAddonTarget, p)) ShowMyAddonDetail(p);
+        }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Resolves the installed addon(s) that a Browse catalog entry corresponds to —
+    /// by ESOUI id first, then by the folder names it installs.</summary>
+    private List<InstalledAddon> FindInstalledFor(EsouiAddon a)
+    {
+        var byId = Installed.Where(i => i.Managed && i.EsouiId == a.Id).ToList();
+        if (byId.Count > 0) return byId;
+        return Installed.Where(i => a.Dirs.Any(d => d.Equals(i.FolderName, StringComparison.OrdinalIgnoreCase))).ToList();
+    }
+
+    /// <summary>Removes an addon from the Browse/search tab when it's already installed.</summary>
+    private Task RemoveBrowseAsync(EsouiAddon a)
+    {
+        var targets = FindInstalledFor(a);
+        if (targets.Count == 0) { Status = $"{a.Title} doesn't appear to be installed."; return Task.CompletedTask; }
+
+        int removed = 0; string lastMsg = "";
+        foreach (var t in targets)
+        {
+            var (ok, msg) = AddonInstaller.Uninstall(t);
+            lastMsg = msg;
+            if (ok) removed++;
+        }
+
+        if (removed > 0)
+        {
+            a.IsInstalled = false;
+            if (ReferenceEquals(_selectedBrowse, a)) { ShowInstall = true; BrowseDetailInstalled = false; }
+            RescanInstalled();
+            RefreshMyAddonStatus();
+            ApplyBrowse();
+            Status = removed == 1 ? lastMsg : $"Removed {removed} folders for {a.Title}.";
+        }
+        else Status = lastMsg;
         return Task.CompletedTask;
     }
 
