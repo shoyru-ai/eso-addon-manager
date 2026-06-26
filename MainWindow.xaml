@@ -83,9 +83,17 @@
                     <TextBlock Text="{Binding AppVersion}" Foreground="{StaticResource Muted}" FontSize="12" FontWeight="SemiBold"
                                ToolTip="Running version"/>
                 </Border>
+                <Border Background="{StaticResource Good}" CornerRadius="4" Padding="6,1" Margin="6,0,0,0" VerticalAlignment="Center"
+                        Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}" ToolTip="Pro license active on this device">
+                    <TextBlock Text="PRO" Foreground="White" FontSize="11" FontWeight="Bold"/>
+                </Border>
                 <TextBlock Text="{Binding AddonsPath}" Foreground="{StaticResource Muted}" FontSize="12" Margin="14,0,0,0" VerticalAlignment="Center"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Get Pro" Style="{StaticResource Update}" Click="ManageLicense_Click" Margin="0,0,8,0"
+                        Visibility="{Binding IsNotPro, Converter={StaticResource BoolToVis}}"/>
+                <Button Content="Manage Pro" Style="{StaticResource Ghost}" Click="ManageLicense_Click" Margin="0,0,8,0"
+                        Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
                 <Button Content="Change folder…" Style="{StaticResource Ghost}" Click="ChangeFolder_Click" Margin="0,0,8,0"/>
                 <Button Content="Open AddOns Folder" Style="{StaticResource Ghost}" Command="{Binding OpenFolderCommand}" Margin="0,0,8,0"/>
                 <Button Content="Refresh" Style="{StaticResource Primary}" Command="{Binding RefreshCommand}"/>

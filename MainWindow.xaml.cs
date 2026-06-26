@@ -22,7 +22,8 @@ public partial class MainWindow : Window
         {
             Diag.Log($"Loaded fired. version={UpdateChecker.CurrentVersion} autoupdate_env={Environment.GetEnvironmentVariable("ESOADDONS_AUTOUPDATE")}");
             await _vm.LoadAsync();
-            Diag.Log("LoadAsync done. checking for app update…");
+            Diag.Log("LoadAsync done. checking license + app update…");
+            await _vm.CheckLicenseAsync();
             await _vm.CheckForAppUpdateAsync();
             Diag.Log($"update check done. available={_vm.AppUpdateAvailable} latest={_vm.AppUpdateVersion} exeUrl={_vm.AppUpdateExeUrl}");
             // Test/headless hook: auto-apply an available update when ESOADDONS_AUTOUPDATE=1.
@@ -59,6 +60,91 @@ public partial class MainWindow : Window
     }
 
     private void UnlockCustomAddons_Click(object sender, RoutedEventArgs e) => PromptCustomAddonsPassword();
+
+    // ---- Pro license dialog ----
+    private void ManageLicense_Click(object sender, RoutedEventArgs e) => ShowLicenseDialog();
+
+    private void ShowLicenseDialog()
+    {
+        Brush B(string key, string fallback) =>
+            TryFindResource(key) as Brush ?? (Brush)new BrushConverter().ConvertFromString(fallback)!;
+
+        var win = new Window
+        {
+            Title = "Shoyru's ESO Addons - Pro",
+            Width = 460, MinWidth = 420,
+            SizeToContent = SizeToContent.Height,
+            Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = B("Bg", "#1E1E1E"),
+            FontFamily = new FontFamily("Segoe UI"),
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false,
+        };
+
+        var panel = new StackPanel { Margin = new Thickness(18) };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = _vm.IsPro ? "✓ Pro is active on this device" : "Unlock Pro",
+            Foreground = _vm.IsPro ? B("Good", "#5BBF73") : B("Text", "#E6E6E6"),
+            FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 6),
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = _vm.IsPro
+                ? "Thanks for supporting development! Premium features are unlocked."
+                : "Pro unlocks premium tool features (addon profiles, backups, multi-PC sync, and more). Your addons are always free — Pro is for the manager.",
+            Foreground = B("Muted", "#9A9A9A"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 14),
+        });
+
+        var status = new TextBlock { Foreground = B("Muted", "#9A9A9A"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0), Visibility = Visibility.Collapsed };
+
+        if (!_vm.IsPro)
+        {
+            panel.Children.Add(new TextBlock { Text = "License key", Foreground = B("Muted", "#9A9A9A"), FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
+            var keyBox = new TextBox { FontSize = 13, Padding = new Thickness(6, 5, 6, 5), Margin = new Thickness(0, 0, 0, 10) };
+            panel.Children.Add(keyBox);
+
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            var activate = new Button { Content = "Activate", Margin = new Thickness(0, 0, 8, 0) };
+            if (TryFindResource("Primary") is Style ps) activate.Style = ps;
+            var buy = new Button { Content = "Buy Pro" };
+            if (TryFindResource("Update") is Style us) buy.Style = us;
+            buy.Click += (_, _) => OpenUrl(_vm.ProBuyUrl);
+            activate.Click += async (_, _) =>
+            {
+                activate.IsEnabled = false;
+                var msg = await _vm.ActivateLicenseAsync(keyBox.Text);
+                status.Text = msg; status.Visibility = Visibility.Visible;
+                status.Foreground = _vm.IsPro ? B("Good", "#5BBF73") : B("Danger", "#E06C6C");
+                activate.IsEnabled = true;
+                if (_vm.IsPro) win.Close();   // unlocked — close; header shows the PRO badge
+            };
+            row.Children.Add(activate);
+            row.Children.Add(buy);
+            panel.Children.Add(row);
+        }
+        else
+        {
+            var remove = new Button { Content = "Remove from this device", HorizontalAlignment = HorizontalAlignment.Left };
+            if (TryFindResource("Ghost") is Style gs) remove.Style = gs;
+            remove.Click += async (_, _) => { await _vm.RemoveLicenseAsync(); win.Close(); };
+            panel.Children.Add(remove);
+        }
+
+        panel.Children.Add(status);
+
+        // footer: support link
+        var support = new TextBlock { Margin = new Thickness(0, 16, 0, 0) };
+        var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run("♥ Support Shoyru (donate)")) { Foreground = B("Accent", "#3B82F6") };
+        link.Click += (_, _) => OpenUrl(_vm.SupportUrl);
+        support.Inlines.Add(link);
+        panel.Children.Add(support);
+
+        win.Content = panel;
+        win.ShowDialog();
+    }
 
     /// <summary>Modal password prompt for the Custom Addons tab. Unlocks for the rest of the session.</summary>
     private void PromptCustomAddonsPassword()

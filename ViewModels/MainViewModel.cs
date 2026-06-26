@@ -21,6 +21,9 @@ public class MainViewModel : ObservableObject
     private readonly MyAddonsClient _myAddonsClient = new();
     private readonly SettingsStore _settingsStore = new();
     private readonly AppSettings _settings;
+    private readonly LicenseService _license = new();
+    private readonly LicenseStore _licenseStore = new();
+    private LicenseInfo _licenseInfo = new();
     private IReadOnlyList<EsouiAddon> _catalog = Array.Empty<EsouiAddon>();
     private Dictionary<string, EsouiAddon> _catalogByDir = new(StringComparer.OrdinalIgnoreCase);
 
@@ -36,6 +39,87 @@ public class MainViewModel : ObservableObject
     {
         get => _customAddonsUnlocked;
         set => SetProperty(ref _customAddonsUnlocked, value);
+    }
+
+    // ---- Pro license ----
+    private bool _isPro;
+    /// <summary>True when a valid Pro license is active on this device (gates premium tool features).</summary>
+    public bool IsPro
+    {
+        get => _isPro;
+        private set { if (SetProperty(ref _isPro, value)) OnPropertyChanged(nameof(IsNotPro)); }
+    }
+    public bool IsNotPro => !IsPro;
+    public string ProBuyUrl => LicenseService.CheckoutUrl;
+    public string SupportUrl => LicenseService.SupportUrl;
+    public bool HasLicenseKey => _licenseInfo.HasKey;
+
+    /// <summary>Validates the stored license on launch. Online check when possible; if offline, falls back to
+    /// the last-known Pro state for a grace window so a dropped connection doesn't lock out a paying user.</summary>
+    public async Task CheckLicenseAsync()
+    {
+        _licenseInfo = _licenseStore.Load();
+        if (!_licenseInfo.HasKey) { IsPro = false; return; }
+
+        // optimistic: show cached Pro immediately, then confirm online
+        IsPro = _licenseInfo.ProCached;
+
+        var res = await _license.ValidateAsync(_licenseInfo.Key, _licenseInfo.InstanceId);
+        if (!string.IsNullOrEmpty(res.Error))
+        {
+            // offline / API unreachable -> 14-day grace on the last good validation
+            IsPro = _licenseInfo.ProCached && (DateTime.UtcNow - _licenseInfo.LastValidatedUtc) < TimeSpan.FromDays(14);
+            return;
+        }
+
+        IsPro = res.IsPro;
+        _licenseInfo.ProCached = res.IsPro;
+        _licenseInfo.LastValidatedUtc = DateTime.UtcNow;
+        if (res.ProductId.Length > 0) _licenseInfo.ProductId = res.ProductId;
+        _licenseStore.Save(_licenseInfo);
+    }
+
+    /// <summary>Activates a Pro key on this device. Returns a user-facing status message.</summary>
+    public async Task<string> ActivateLicenseAsync(string key)
+    {
+        key = (key ?? "").Trim();
+        if (key.Length == 0) return "Enter a license key.";
+        Status = "Activating license…";
+        var res = await _license.ActivateAsync(key);
+
+        if (!string.IsNullOrEmpty(res.Error))
+            return Status = $"Couldn't activate: {res.Error}";
+        if (!res.Ok)
+            return Status = "That key couldn't be activated (it may have reached its device limit).";
+        if (!LicenseService.ProductMatches(res.ProductId))
+            return Status = "That key isn't for Shoyru's ESO Addons Pro.";
+        if (res.Status != "active")
+            return Status = $"That key is {res.Status} (not active).";
+
+        _licenseInfo = new LicenseInfo
+        {
+            Key = key,
+            InstanceId = res.InstanceId,
+            ProductId = res.ProductId,
+            ProCached = true,
+            LastValidatedUtc = DateTime.UtcNow,
+        };
+        _licenseStore.Save(_licenseInfo);
+        IsPro = true;
+        OnPropertyChanged(nameof(HasLicenseKey));
+        return Status = res.CustomerName.Length > 0 ? $"Pro activated — thanks, {res.CustomerName}!" : "Pro activated. Thank you!";
+    }
+
+    /// <summary>Removes the license from this device (frees the seat).</summary>
+    public async Task RemoveLicenseAsync()
+    {
+        if (_licenseInfo.HasKey)
+            try { await _license.DeactivateAsync(_licenseInfo.Key, _licenseInfo.InstanceId); } catch { /* best effort */ }
+        _licenseStore.Clear();
+        _licenseInfo = new LicenseInfo();
+        IsPro = false;
+        OnPropertyChanged(nameof(HasLicenseKey));
+        Status = "Pro license removed from this device.";
     }
 
     public MainViewModel(string? addonsOverride = null, bool ppeChannel = false)
