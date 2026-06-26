@@ -24,8 +24,11 @@ public class MainViewModel : ObservableObject
     private IReadOnlyList<EsouiAddon> _catalog = Array.Empty<EsouiAddon>();
     private Dictionary<string, EsouiAddon> _catalogByDir = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Running app version (from the assembly), e.g. "v0.2.1" — shown in the header.</summary>
-    public string AppVersion => "v" + UpdateChecker.CurrentVersion;
+    private readonly bool _ppeChannel;
+
+    /// <summary>Running app version (from the assembly), e.g. "v0.2.1" — shown in the header.
+    /// Tagged [PPE] when on the staging/pre-release channel so it's obvious which channel you're testing.</summary>
+    public string AppVersion => "v" + UpdateChecker.CurrentVersion + (_ppeChannel ? "  [PPE]" : "");
 
     private bool _customAddonsUnlocked;
     /// <summary>Whether the password gate on the Custom Addons tab has been passed this session.</summary>
@@ -35,8 +38,9 @@ public class MainViewModel : ObservableObject
         set => SetProperty(ref _customAddonsUnlocked, value);
     }
 
-    public MainViewModel(string? addonsOverride = null)
+    public MainViewModel(string? addonsOverride = null, bool ppeChannel = false)
     {
+        _ppeChannel = ppeChannel;
         _installer = new AddonInstaller(_client);
         _settings = _settingsStore.Load();
         if (!string.IsNullOrWhiteSpace(addonsOverride))
@@ -93,7 +97,7 @@ public class MainViewModel : ObservableObject
     /// <summary>Checks GitHub Releases; if a newer app version exists, surfaces the update banner.</summary>
     public async Task CheckForAppUpdateAsync()
     {
-        var info = await new UpdateChecker().CheckAsync();
+        var info = await new UpdateChecker(_ppeChannel).CheckAsync();
         if (info is { IsNewer: true })
         {
             AppUpdateExeUrl = info.ExeUrl;

@@ -12,11 +12,16 @@ public class UpdateChecker
     public const string Owner = "shoyru-ai";
     public const string Repo = "eso-addon-manager";
     private static readonly string LatestUrl = $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest";
+    private static readonly string AllReleasesUrl = $"https://api.github.com/repos/{Owner}/{Repo}/releases?per_page=30";
 
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(20) };
 
-    public UpdateChecker()
+    /// <summary>PPE channel: also consider pre-releases (the highest version wins). PROD: latest stable only.</summary>
+    public bool IncludePrereleases { get; }
+
+    public UpdateChecker(bool includePrereleases = false)
     {
+        IncludePrereleases = includePrereleases;
         _http.DefaultRequestHeaders.Add("User-Agent", "ESO-Addons-Updater");
         _http.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
     }
@@ -28,15 +33,44 @@ public class UpdateChecker
     /// <summary>Returns update info, or null on any failure (never throws).</summary>
     public async Task<UpdateInfo?> CheckAsync(string? currentVersion = null)
     {
-        try { return ParseLatestRelease(await _http.GetStringAsync(LatestUrl), currentVersion ?? CurrentVersion); }
+        try
+        {
+            var cur = currentVersion ?? CurrentVersion;
+            return IncludePrereleases
+                ? ParseReleasesList(await _http.GetStringAsync(AllReleasesUrl), cur)
+                : ParseLatestRelease(await _http.GetStringAsync(LatestUrl), cur);
+        }
         catch { return null; }
     }
 
-    /// <summary>Parses a GitHub /releases/latest payload. (Static = unit-testable.)</summary>
+    /// <summary>Parses a GitHub /releases/latest payload (a single release object). (Static = testable.)</summary>
     public static UpdateInfo? ParseLatestRelease(string json, string currentVersion)
     {
         using var doc = JsonDocument.Parse(json);
-        var r = doc.RootElement;
+        return ParseRelease(doc.RootElement, currentVersion);
+    }
+
+    /// <summary>Parses a GitHub /releases LIST (array, incl. pre-releases) and returns the HIGHEST-version
+    /// release — used by the PPE channel so a pre-release with a higher version is offered. (Static = testable.)</summary>
+    public static UpdateInfo? ParseReleasesList(string json, string currentVersion)
+    {
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.ValueKind != JsonValueKind.Array) return null;
+
+        UpdateInfo? best = null;
+        foreach (var r in doc.RootElement.EnumerateArray())
+        {
+            if (r.TryGetProperty("draft", out var d) && d.ValueKind == JsonValueKind.True) continue;
+            var info = ParseRelease(r, currentVersion);
+            if (info is null) continue;
+            if (best is null || VersionCompare.IsNewer(info.Version, best.Version)) best = info;
+        }
+        return best;
+    }
+
+    /// <summary>Builds UpdateInfo from a single release JSON object.</summary>
+    private static UpdateInfo? ParseRelease(JsonElement r, string currentVersion)
+    {
         if (r.ValueKind != JsonValueKind.Object) return null;
 
         var tag = Str(r, "tag_name");

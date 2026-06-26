@@ -11,26 +11,30 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // PPE/staging channel: also receive pre-release builds. Persists across self-updates
+        // because the updater re-passes launch args.
+        var ppe = e.Args.Any(a => a.Equals("--ppe", StringComparison.OrdinalIgnoreCase));
+
         // Headless self-update mode (used for testing + a silent-update entry point):
         //   "Shoyru's ESO Addons.exe" --selfupdate
         if (e.Args.Contains("--selfupdate"))
         {
-            _ = RunSelfUpdateAsync();
+            _ = RunSelfUpdateAsync(ppe);
             return;
         }
 
         // Optional folder override (used to give the sandbox a clean, junction-free AddOns folder):
         //   "Shoyru's ESO Addons.exe" --addons "C:\path\to\AddOns"
         var addonsOverride = CliArgs.GetOption(e.Args, "--addons");
-        new MainWindow(addonsOverride).Show();
+        new MainWindow(addonsOverride, ppe).Show();
     }
 
-    private async Task RunSelfUpdateAsync()
+    private async Task RunSelfUpdateAsync(bool ppe = false)
     {
         try
         {
-            Diag.Log($"--selfupdate: current={UpdateChecker.CurrentVersion}");
-            var info = await new UpdateChecker().CheckAsync();
+            Diag.Log($"--selfupdate: current={UpdateChecker.CurrentVersion} ppe={ppe}");
+            var info = await new UpdateChecker(ppe).CheckAsync();
             Diag.Log($"--selfupdate: available={info?.IsNewer} latest={info?.Version} exe={info?.ExeUrl}");
             if (info is { IsNewer: true } && info.ExeUrl.Length > 0)
             {

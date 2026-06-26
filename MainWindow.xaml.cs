@@ -13,10 +13,10 @@ public partial class MainWindow : Window
 {
     private readonly MainViewModel _vm;
 
-    public MainWindow(string? addonsOverride = null)
+    public MainWindow(string? addonsOverride = null, bool ppe = false)
     {
         InitializeComponent();
-        _vm = new MainViewModel(addonsOverride);
+        _vm = new MainViewModel(addonsOverride, ppe);
         DataContext = _vm;
         Loaded += async (_, _) =>
         {

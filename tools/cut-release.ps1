@@ -2,11 +2,18 @@
   cut-release.ps1 — build a self-contained single-file exe for the given version
   and publish it as a GitHub Release (with the exe + a zip as assets).
 
-  Usage:  .\tools\cut-release.ps1 -Version 0.2.0 -Notes "- Fixed X`n- Added Y"
+  Usage:
+    .\tools\cut-release.ps1 -Version 0.2.0 -Notes "- Fixed X`n- Added Y"       # PROD (stable, becomes 'latest')
+    .\tools\cut-release.ps1 -Version 0.3.1 -Prerelease -Notes "..."             # PPE (staging, NOT 'latest')
+
+  PROD releases are what the public app updates to (via /releases/latest).
+  -Prerelease publishes a STAGING build that only PPE-channel apps (--ppe) pick up; the public
+  'latest' link ignores it. Promote a tested PPE build to PROD with tools/promote-to-prod.ps1.
 #>
 param(
     [Parameter(Mandatory = $true)][string]$Version,
-    [string]$Notes = ""
+    [string]$Notes = "",
+    [switch]$Prerelease
 )
 $ErrorActionPreference = 'Stop'
 $gh   = "C:\Program Files\GitHub CLI\gh.exe"
@@ -55,9 +62,12 @@ Copy-Item (Join-Path $app "Shoyru ESO Addons.exe") $assetExe -Force
 $zip = Join-Path $dist "Shoyrus-ESO-Addons-v$Version.zip"
 Compress-Archive -Path (Join-Path $app '*') -DestinationPath $zip -Force
 
-Write-Host "Creating GitHub release v$Version ..." -ForegroundColor Cyan
+$channel = if ($Prerelease) { "PPE (pre-release)" } else { "PROD (latest)" }
+Write-Host "Creating GitHub release v$Version  [$channel] ..." -ForegroundColor Cyan
 $notesFile = Join-Path $dist "release-notes.txt"
 $Notes | Out-File -Encoding utf8 $notesFile
-& $gh release create "v$Version" $assetExe $zip --repo $repo --title "v$Version" --notes-file $notesFile
+$ghArgs = @("release","create","v$Version",$assetExe,$zip,"--repo",$repo,"--title","v$Version","--notes-file",$notesFile)
+if ($Prerelease) { $ghArgs += "--prerelease" } else { $ghArgs += "--latest" }
+& $gh @ghArgs
 if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit $LASTEXITCODE)" }
-Write-Host "Released v$Version." -ForegroundColor Green
+Write-Host "Released v$Version  [$channel]." -ForegroundColor Green
