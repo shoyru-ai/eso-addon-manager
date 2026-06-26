@@ -16,7 +16,12 @@ public class MyAddonsClient
 
     public async Task<List<PublishedAddon>> GetAsync()
     {
-        try { return ParseManifest(await _http.GetStringAsync(ManifestUrl)); }
+        try
+        {
+            // cache-buster so a freshly published manifest isn't masked by GitHub's raw CDN (~5 min)
+            var url = $"{ManifestUrl}?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+            return ParseManifest(await _http.GetStringAsync(url));
+        }
         catch { return new List<PublishedAddon>(); }
     }
 
