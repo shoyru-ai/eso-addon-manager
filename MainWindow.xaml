@@ -236,6 +236,56 @@
                         </Grid>
                     </Grid>
                 </TabItem>
+
+                <!-- Shoyru's published addons -->
+                <TabItem Header="Shoyru's Addons">
+                    <Grid Background="{StaticResource Panel}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="14,12,12,8">
+                            <TextBlock Text="Addons created by Shoyru — install them directly." Foreground="{StaticResource Muted}" FontSize="13" VerticalAlignment="Center"/>
+                            <Button Content="View on GitHub" Style="{StaticResource Ghost}" Command="{Binding OpenMyAddonsRepoCommand}" Margin="14,0,0,0"/>
+                        </StackPanel>
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="6,0,6,6">
+                            <ItemsControl ItemsSource="{Binding MyAddons}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource PanelAlt}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="14" Margin="6,5">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                                    <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="Bold" TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding StatusLabel}" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,2,0,0"/>
+                                                    <TextBlock Text="{Binding Description}" Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                                    <Button Content="Install" Style="{StaticResource Primary}" Padding="12,5" Margin="0,0,6,0"
+                                                            Visibility="{Binding ShowInstall, Converter={StaticResource BoolToVis}}"
+                                                            Command="{Binding DataContext.InstallMyAddonCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"/>
+                                                    <Button Content="Update" Style="{StaticResource Update}" Padding="12,5" Margin="0,0,6,0"
+                                                            Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVis}}"
+                                                            Command="{Binding DataContext.InstallMyAddonCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"/>
+                                                    <Button Content="Remove" Style="{StaticResource Ghost}" Padding="12,5"
+                                                            Visibility="{Binding ShowRemove, Converter={StaticResource BoolToVis}}"
+                                                            Command="{Binding DataContext.RemoveMyAddonCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </TabItem>
             </TabControl>
 
             <!-- drag to resize the addon list vs the description panel -->

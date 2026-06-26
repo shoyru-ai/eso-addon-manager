@@ -18,6 +18,7 @@ public class MainViewModel : ObservableObject
     private readonly EsouiClient _client = new();
     private readonly AddonInstaller _installer;
     private readonly InstallStateStore _state = new();
+    private readonly MyAddonsClient _myAddonsClient = new();
     private readonly SettingsStore _settingsStore = new();
     private readonly AppSettings _settings;
     private IReadOnlyList<EsouiAddon> _catalog = Array.Empty<EsouiAddon>();
@@ -39,6 +40,9 @@ public class MainViewModel : ObservableObject
         RefreshCommand = new AsyncRelayCommand(_ => LoadAsync(true));
         SearchCommand = new RelayCommand(_ => ApplyBrowse());
         SetSortCommand = new RelayCommand(s => Sort = Enum.Parse<BrowseSort>((string)s!));
+        InstallMyAddonCommand = new AsyncRelayCommand(a => InstallMyAddonAsync((PublishedAddon)a!), a => a is PublishedAddon);
+        RemoveMyAddonCommand = new AsyncRelayCommand(a => RemoveMyAddonAsync((PublishedAddon)a!), a => a is PublishedAddon);
+        OpenMyAddonsRepoCommand = new RelayCommand(_ => OpenUrl("https://github.com/shoyru-ai/shoyru-eso-addons"));
         InstallCommand = new AsyncRelayCommand(a => InstallAsync((EsouiAddon)a!), a => a is EsouiAddon);
         UpdateCommand = new AsyncRelayCommand(a => UpdateAsync((InstalledAddon)a!), a => a is InstalledAddon ia && ia.UpdateAvailable);
         RemoveCommand = new AsyncRelayCommand(a => RemoveAsync((InstalledAddon)a!), a => a is InstalledAddon);
@@ -81,6 +85,10 @@ public class MainViewModel : ObservableObject
 
     public ObservableCollection<InstalledAddon> Installed { get; } = new();
     public ObservableCollection<EsouiAddon> SearchResults { get; } = new();
+    public ObservableCollection<PublishedAddon> MyAddons { get; } = new();
+    public ICommand InstallMyAddonCommand { get; }
+    public ICommand RemoveMyAddonCommand { get; }
+    public ICommand OpenMyAddonsRepoCommand { get; }
     public ICollectionView InstalledView { get; }
     public ICollectionView BrowseView { get; }
 
@@ -226,6 +234,7 @@ public class MainViewModel : ObservableObject
             catch { /* categories are optional; browse still works */ }
 
             ApplyBrowse(); // populate Browse by default (top downloads) so it's never blank
+            await LoadMyAddonsAsync();
             Status = $"{Installed.Count} addons installed · catalog: {_catalog.Count:N0} addons.";
         }
         catch (Exception ex) { Status = "Error: " + ex.Message; }
@@ -266,6 +275,52 @@ public class MainViewModel : ObservableObject
                 if (DetailIsInstalled) BuildDependencyList(again);
             }
         }
+        RefreshMyAddonStatus();
+    }
+
+    // ---- Shoyru's published addons ----
+    public async Task LoadMyAddonsAsync()
+    {
+        var list = await _myAddonsClient.GetAsync();
+        MyAddons.Clear();
+        foreach (var p in list) MyAddons.Add(p);
+        RefreshMyAddonStatus();
+    }
+
+    private void RefreshMyAddonStatus()
+    {
+        foreach (var p in MyAddons)
+        {
+            var inst = Installed.FirstOrDefault(i => i.FolderName.Equals(p.Name, StringComparison.OrdinalIgnoreCase));
+            p.IsInstalled = inst is not null;
+            p.InstalledVersion = inst?.Version ?? "";
+        }
+    }
+
+    private async Task InstallMyAddonAsync(PublishedAddon p)
+    {
+        try
+        {
+            p.Status = "Installing…";
+            Status = $"Installing {p.Title}…";
+            await _installer.InstallFromUrlAsync(p.DownloadUrl, AddonsPath);
+            _state.Set(p.Name, p.Version); _state.Save();
+            RescanInstalled();
+            RefreshMyAddonStatus();
+            p.Status = "";
+            Status = $"Installed {p.Title}.";
+        }
+        catch (Exception ex) { p.Status = "Failed"; Status = $"Install failed: {ex.Message}"; }
+    }
+
+    private Task RemoveMyAddonAsync(PublishedAddon p)
+    {
+        var inst = Installed.FirstOrDefault(i => i.FolderName.Equals(p.Name, StringComparison.OrdinalIgnoreCase));
+        if (inst is null) return Task.CompletedTask;
+        var (ok, msg) = AddonInstaller.Uninstall(inst);
+        Status = msg;
+        if (ok) { RescanInstalled(); RefreshMyAddonStatus(); }
+        return Task.CompletedTask;
     }
 
     /// <summary>Populates the Browse list from the catalog using the current category, search text, and sort.</summary>

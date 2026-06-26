@@ -19,6 +19,13 @@ public class AddonInstaller
         return info.Dirs;
     }
 
+    /// <summary>Installs an addon from a direct zip URL (used for Shoyru's published addons).</summary>
+    public async Task InstallFromUrlAsync(string url, string addonsPath)
+    {
+        var bytes = await _client.DownloadAsync(url);
+        ExtractZip(bytes, addonsPath);
+    }
+
     /// <summary>Extracts a zip's entries into the AddOns folder (overwrite), guarding against zip-slip.
     /// Returns the top-level folder names that were written. (Static = unit-testable.)</summary>
     public static List<string> ExtractZip(byte[] zipBytes, string addonsPath)
