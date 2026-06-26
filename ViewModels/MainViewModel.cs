@@ -232,6 +232,7 @@ public class MainViewModel : ObservableObject
 
     private void RescanInstalled()
     {
+        var prevSelected = _selectedInstalled?.FolderName;
         var scanned = AddonScanner.Scan(AddonsPath);
         Installed.Clear();
         foreach (var a in scanned)
@@ -249,6 +250,20 @@ public class MainViewModel : ObservableObject
         }
         RecountUpdates();
         InstalledView.Refresh();
+
+        // Preserve the detail selection across the rescan so the detail pane — and its
+        // dependency ✓/✗ list + Get buttons — refreshes live after an install/update.
+        if (prevSelected is not null)
+        {
+            var again = Installed.FirstOrDefault(a => a.FolderName.Equals(prevSelected, StringComparison.OrdinalIgnoreCase));
+            if (again is not null)
+            {
+                _selectedInstalled = again;
+                OnPropertyChanged(nameof(SelectedInstalled));
+                DetailRemoveTarget = again;
+                if (DetailIsInstalled) BuildDependencyList(again);
+            }
+        }
     }
 
     /// <summary>Populates the Browse list from the catalog using the current category, search text, and sort.</summary>
@@ -391,9 +406,7 @@ public class MainViewModel : ObservableObject
         {
             await _installer.InstallAsync(cat.Id, AddonsPath);
             RecordInstalled(cat, dir);
-            RescanInstalled();
-            // Get = install ONLY this one dependency (no cascade); refresh the ✓/✗ list.
-            if (_selectedInstalled is not null) BuildDependencyList(_selectedInstalled);
+            RescanInstalled(); // restores selection + refreshes the dependency ✓/✗ list
             Status = $"Installed {cat.Title}.";
         }
         catch (Exception ex) { Status = $"Install failed: {ex.Message}"; }
