@@ -183,6 +183,9 @@ public class MainViewModel : ObservableObject
     public bool ShowDepAutoNote { get => _showDepAutoNote; set => SetProperty(ref _showDepAutoNote, value); }
     private bool _showInstall;
     public bool ShowInstall { get => _showInstall; set => SetProperty(ref _showInstall, value); }
+    private bool _browseDetailInstalled;
+    /// <summary>True when the detail pane shows a Browse addon that's already installed (shows a badge instead of Install).</summary>
+    public bool BrowseDetailInstalled { get => _browseDetailInstalled; set => SetProperty(ref _browseDetailInstalled, value); }
     private bool _showManage;
     public bool ShowManage { get => _showManage; set => SetProperty(ref _showManage, value); }
     private bool _detailUpdateAvailable;
@@ -384,6 +387,7 @@ public class MainViewModel : ObservableObject
         HasDetail = true;
         DetailIsInstalled = true;
         ShowInstall = false;
+        BrowseDetailInstalled = false;
         ShowManage = true;
         ShowMyAddonActions = false;
         DetailUpdateAvailable = a.UpdateAvailable;
@@ -421,7 +425,8 @@ public class MainViewModel : ObservableObject
     {
         HasDetail = true;
         DetailIsInstalled = false;
-        ShowInstall = true;
+        ShowInstall = !a.IsInstalled;
+        BrowseDetailInstalled = a.IsInstalled;
         ShowManage = false;
         ShowMyAddonActions = false;
         DetailUpdateAvailable = false;
@@ -465,6 +470,7 @@ public class MainViewModel : ObservableObject
         // hide installed/browse buttons, show My-Addon actions
         DetailIsInstalled = false;
         ShowInstall = false;
+        BrowseDetailInstalled = false;
         ShowManage = false;
         DetailUpdateAvailable = false;
         ShowMyAddonActions = true;
@@ -498,6 +504,7 @@ public class MainViewModel : ObservableObject
             var deps = await EnsureDependenciesForAsync(addon.Dirs);
             addon.IsInstalled = true;
             addon.Status = "Installed";
+            if (ReferenceEquals(_selectedBrowse, addon)) { ShowInstall = false; BrowseDetailInstalled = true; }
             ApplyBrowse();
             Status = deps > 0 ? $"Installed {addon.Title} (+{deps} dependency/ies)." : $"Installed {addon.Title}.";
         }

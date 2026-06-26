@@ -53,5 +53,8 @@ $zip = Join-Path $dist "Shoyrus-ESO-Addons-v$Version.zip"
 Compress-Archive -Path (Join-Path $app '*') -DestinationPath $zip -Force
 
 Write-Host "Creating GitHub release v$Version ..." -ForegroundColor Cyan
-& $gh release create "v$Version" $assetExe $zip --repo $repo --title "v$Version" --notes $Notes
+$notesFile = Join-Path $dist "release-notes.txt"
+$Notes | Out-File -Encoding utf8 $notesFile
+& $gh release create "v$Version" $assetExe $zip --repo $repo --title "v$Version" --notes-file $notesFile
+if ($LASTEXITCODE -ne 0) { throw "gh release create failed (exit $LASTEXITCODE)" }
 Write-Host "Released v$Version." -ForegroundColor Green
