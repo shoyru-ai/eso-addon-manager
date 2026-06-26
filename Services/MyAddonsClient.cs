@@ -43,6 +43,7 @@ public class MyAddonsClient
                     Version = Str(e, "version"),
                     Description = Str(e, "description"),
                     DownloadUrl = Str(e, "downloadUrl"),
+                    Dependencies = StrArray(e, "dependencies"),
                 });
             }
         }
@@ -51,4 +52,14 @@ public class MyAddonsClient
 
     private static string Str(JsonElement e, string name)
         => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+
+    private static List<string> StrArray(JsonElement e, string name)
+    {
+        var list = new List<string>();
+        if (e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Array)
+            foreach (var item in v.EnumerateArray())
+                if (item.ValueKind == JsonValueKind.String && item.GetString() is { Length: > 0 } s)
+                    list.Add(s);
+        return list;
+    }
 }

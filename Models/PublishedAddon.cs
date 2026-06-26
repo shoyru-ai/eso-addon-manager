@@ -11,6 +11,8 @@ public class PublishedAddon : ObservableObject
     public string Version { get; init; } = "";
     public string Description { get; init; } = "";
     public string DownloadUrl { get; init; } = "";
+    /// <summary>Required library folder names (from the addon's ## DependsOn), shown in the detail pane.</summary>
+    public List<string> Dependencies { get; init; } = new();
 
     private bool _isInstalled;
     public bool IsInstalled

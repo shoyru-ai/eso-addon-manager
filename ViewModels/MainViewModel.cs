@@ -562,8 +562,13 @@ public class MainViewModel : ObservableObject
         DetailDescription = string.IsNullOrWhiteSpace(p.Description) ? "(no description provided)" : p.Description;
         DetailChangeLog = "";
         DetailPageUrl = "";
+        // Show the addon's required libraries (from the manifest) so the user knows what's needed
+        // before installing — they install automatically, but this makes them visible.
         DetailDependencies.Clear();
-        HasDependencies = false;
+        var installed = new HashSet<string>(Installed.Select(i => i.FolderName), StringComparer.OrdinalIgnoreCase);
+        foreach (var d in p.Dependencies)
+            DetailDependencies.Add(new DependencyStatus { Name = d, IsInstalled = installed.Contains(d), IsOptional = false, IsGettable = _catalogByDir.ContainsKey(d) });
+        HasDependencies = DetailDependencies.Count > 0;
         ShowDepAutoNote = false;
         // hide installed/browse buttons, show My-Addon actions
         DetailIsInstalled = false;
