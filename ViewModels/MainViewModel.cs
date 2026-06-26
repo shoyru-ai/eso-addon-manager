@@ -166,14 +166,16 @@ public class MainViewModel : ObservableObject
     private string _detailMeta = "";
     public string DetailMeta { get => _detailMeta; set => SetProperty(ref _detailMeta, value); }
     private string _detailImageUrl = "";
-    public string DetailImageUrl { get => _detailImageUrl; set => SetProperty(ref _detailImageUrl, value); }
+    public string DetailImageUrl { get => _detailImageUrl; set { if (SetProperty(ref _detailImageUrl, value)) OnPropertyChanged(nameof(HasDetailImage)); } }
+    public bool HasDetailImage => !string.IsNullOrEmpty(DetailImageUrl);
     private string _detailDescription = "";
     public string DetailDescription { get => _detailDescription; set => SetProperty(ref _detailDescription, value); }
     private string _detailChangeLog = "";
     public string DetailChangeLog { get => _detailChangeLog; set { if (SetProperty(ref _detailChangeLog, value)) OnPropertyChanged(nameof(HasChangeLog)); } }
     public bool HasChangeLog => !string.IsNullOrWhiteSpace(DetailChangeLog);
     private string _detailPageUrl = "";
-    public string DetailPageUrl { get => _detailPageUrl; set => SetProperty(ref _detailPageUrl, value); }
+    public string DetailPageUrl { get => _detailPageUrl; set { if (SetProperty(ref _detailPageUrl, value)) OnPropertyChanged(nameof(HasDetailPage)); } }
+    public bool HasDetailPage => !string.IsNullOrEmpty(DetailPageUrl);
     public ObservableCollection<DependencyStatus> DetailDependencies { get; } = new();
     private bool _hasDependencies;
     public bool HasDependencies { get => _hasDependencies; set => SetProperty(ref _hasDependencies, value); }
@@ -185,6 +187,25 @@ public class MainViewModel : ObservableObject
     public bool ShowManage { get => _showManage; set => SetProperty(ref _showManage, value); }
     private bool _detailUpdateAvailable;
     public bool DetailUpdateAvailable { get => _detailUpdateAvailable; set => SetProperty(ref _detailUpdateAvailable, value); }
+
+    // detail-pane state for a selected "My Addon"
+    private bool _showMyAddonActions;
+    public bool ShowMyAddonActions { get => _showMyAddonActions; set => SetProperty(ref _showMyAddonActions, value); }
+    private bool _myDetailShowInstall;
+    public bool MyDetailShowInstall { get => _myDetailShowInstall; set => SetProperty(ref _myDetailShowInstall, value); }
+    private bool _myDetailUpdateAvailable;
+    public bool MyDetailUpdateAvailable { get => _myDetailUpdateAvailable; set => SetProperty(ref _myDetailUpdateAvailable, value); }
+    private bool _myDetailShowRemove;
+    public bool MyDetailShowRemove { get => _myDetailShowRemove; set => SetProperty(ref _myDetailShowRemove, value); }
+    private PublishedAddon? _detailMyAddonTarget;
+    public PublishedAddon? DetailMyAddonTarget { get => _detailMyAddonTarget; set => SetProperty(ref _detailMyAddonTarget, value); }
+
+    private PublishedAddon? _selectedMyAddon;
+    public PublishedAddon? SelectedMyAddon
+    {
+        get => _selectedMyAddon;
+        set { if (SetProperty(ref _selectedMyAddon, value) && value is not null) ShowMyAddonDetail(value); }
+    }
 
     // detail action targets
     private EsouiAddon? _detailInstallTarget;
@@ -364,6 +385,7 @@ public class MainViewModel : ObservableObject
         DetailIsInstalled = true;
         ShowInstall = false;
         ShowManage = true;
+        ShowMyAddonActions = false;
         DetailUpdateAvailable = a.UpdateAvailable;
         DetailInstallTarget = null;
         DetailRemoveTarget = a;
@@ -401,6 +423,7 @@ public class MainViewModel : ObservableObject
         DetailIsInstalled = false;
         ShowInstall = true;
         ShowManage = false;
+        ShowMyAddonActions = false;
         DetailUpdateAvailable = false;
         DetailRemoveTarget = null;
         DetailInstallTarget = a;
@@ -425,6 +448,30 @@ public class MainViewModel : ObservableObject
             }
         }
         catch (Exception ex) { DetailDescription = "Could not load description: " + ex.Message; }
+    }
+
+    private void ShowMyAddonDetail(PublishedAddon p)
+    {
+        HasDetail = true;
+        DetailTitle = p.Title;
+        DetailMeta = p.StatusLabel;
+        DetailImageUrl = "";
+        DetailDescription = string.IsNullOrWhiteSpace(p.Description) ? "(no description provided)" : p.Description;
+        DetailChangeLog = "";
+        DetailPageUrl = "";
+        DetailDependencies.Clear();
+        HasDependencies = false;
+        ShowDepAutoNote = false;
+        // hide installed/browse buttons, show My-Addon actions
+        DetailIsInstalled = false;
+        ShowInstall = false;
+        ShowManage = false;
+        DetailUpdateAvailable = false;
+        ShowMyAddonActions = true;
+        DetailMyAddonTarget = p;
+        MyDetailShowInstall = p.ShowInstall;
+        MyDetailUpdateAvailable = p.UpdateAvailable;
+        MyDetailShowRemove = p.ShowRemove;
     }
 
     private void BuildDependencyList(InstalledAddon a)

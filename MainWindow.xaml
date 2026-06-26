@@ -248,42 +248,62 @@
                             <TextBlock Text="Addons created by Shoyru — install them directly." Foreground="{StaticResource Muted}" FontSize="13" VerticalAlignment="Center"/>
                             <Button Content="View on GitHub" Style="{StaticResource Ghost}" Command="{Binding OpenMyAddonsRepoCommand}" Margin="14,0,0,0"/>
                         </StackPanel>
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="6,0,6,6">
-                            <ItemsControl ItemsSource="{Binding MyAddons}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="{StaticResource PanelAlt}" BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="14" Margin="6,5">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                                    <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="Bold" TextWrapping="Wrap"/>
-                                                    <TextBlock Text="{Binding StatusLabel}" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,2,0,0"/>
-                                                    <TextBlock Text="{Binding Description}" Foreground="{StaticResource Text}" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                    <Button Content="Install" Style="{StaticResource Primary}" Padding="12,5" Margin="0,0,6,0"
-                                                            Visibility="{Binding ShowInstall, Converter={StaticResource BoolToVis}}"
-                                                            Command="{Binding DataContext.InstallMyAddonCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                            CommandParameter="{Binding}"/>
-                                                    <Button Content="Update" Style="{StaticResource Update}" Padding="12,5" Margin="0,0,6,0"
-                                                            Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVis}}"
-                                                            Command="{Binding DataContext.InstallMyAddonCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                            CommandParameter="{Binding}"/>
-                                                    <Button Content="Remove" Style="{StaticResource Ghost}" Padding="12,5"
-                                                            Visibility="{Binding ShowRemove, Converter={StaticResource BoolToVis}}"
-                                                            Command="{Binding DataContext.RemoveMyAddonCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                            CommandParameter="{Binding}"/>
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
+                        <ListBox Grid.Row="1" ItemsSource="{Binding MyAddons}" SelectedItem="{Binding SelectedMyAddon}"
+                                 Background="Transparent" BorderThickness="0" Margin="6,0,6,6"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Stretch">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Margin" Value="0,1"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <Border x:Name="b" Background="Transparent" CornerRadius="6" Padding="12,9">
+                                                    <ContentPresenter/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="b" Property="Background" Value="{StaticResource PanelAlt}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="b" Property="Background" Value="{StaticResource UpdateRow}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                                            <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding StatusLabel}" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,1,0,0"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Status}" Foreground="{StaticResource Muted}" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                            <Button Content="Install" Style="{StaticResource Primary}" Padding="10,4" Margin="0,0,6,0"
+                                                    Visibility="{Binding ShowInstall, Converter={StaticResource BoolToVis}}"
+                                                    Command="{Binding DataContext.InstallMyAddonCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}"/>
+                                            <Button Content="Update" Style="{StaticResource Update}" Padding="10,4" Margin="0,0,6,0"
+                                                    Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVis}}"
+                                                    Command="{Binding DataContext.InstallMyAddonCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}"/>
+                                            <Button Content="Remove" Style="{StaticResource Ghost}" Padding="10,4"
+                                                    Visibility="{Binding ShowRemove, Converter={StaticResource BoolToVis}}"
+                                                    Command="{Binding DataContext.RemoveMyAddonCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </Grid>
                 </TabItem>
             </TabControl>
@@ -302,7 +322,8 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,14"
                                   Visibility="{Binding HasDetail, Converter={StaticResource BoolToVis}}">
                         <StackPanel>
-                            <Border Background="{StaticResource Bg}" CornerRadius="8" Height="150" Margin="0,0,0,12">
+                            <Border Background="{StaticResource Bg}" CornerRadius="8" Height="150" Margin="0,0,0,12"
+                                    Visibility="{Binding HasDetailImage, Converter={StaticResource BoolToVis}}">
                                 <Image b:ImageLoader.SourceUrl="{Binding DetailImageUrl}" Stretch="Uniform" Margin="6"/>
                             </Border>
                             <TextBlock Text="{Binding DetailTitle}" FontSize="17" FontWeight="Bold" TextWrapping="Wrap"/>
@@ -319,7 +340,18 @@
                                 <Button Content="Remove" Style="{StaticResource Ghost}" Margin="0,0,6,0"
                                         Visibility="{Binding ShowManage, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding RemoveCommand}" CommandParameter="{Binding DetailRemoveTarget}"/>
+                                <!-- My Addon actions -->
+                                <Button Content="Install" Style="{StaticResource Primary}" Margin="0,0,6,0"
+                                        Visibility="{Binding MyDetailShowInstall, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding InstallMyAddonCommand}" CommandParameter="{Binding DetailMyAddonTarget}"/>
+                                <Button Content="Update" Style="{StaticResource Update}" Margin="0,0,6,0"
+                                        Visibility="{Binding MyDetailUpdateAvailable, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding InstallMyAddonCommand}" CommandParameter="{Binding DetailMyAddonTarget}"/>
+                                <Button Content="Remove" Style="{StaticResource Ghost}" Margin="0,0,6,0"
+                                        Visibility="{Binding MyDetailShowRemove, Converter={StaticResource BoolToVis}}"
+                                        Command="{Binding RemoveMyAddonCommand}" CommandParameter="{Binding DetailMyAddonTarget}"/>
                                 <Button Content="ESOUI Page" Style="{StaticResource Ghost}"
+                                        Visibility="{Binding HasDetailPage, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding OpenPageCommand}"/>
                             </StackPanel>
 
