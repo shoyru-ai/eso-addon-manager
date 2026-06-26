@@ -273,39 +273,51 @@
                                         Command="{Binding OpenPageCommand}"/>
                             </StackPanel>
 
-                            <!-- dependencies -->
+                            <!-- dependencies (installed addon/library) -->
                             <StackPanel Visibility="{Binding HasDependencies, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
                                 <TextBlock Text="DEPENDENCIES" Foreground="{StaticResource Muted}" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
                                 <ItemsControl ItemsSource="{Binding DetailDependencies}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Grid Margin="0,2">
+                                            <Grid Margin="0,3">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="{Binding Glyph}" Margin="0,0,8,0" FontWeight="Bold">
+                                                <TextBlock Grid.Column="0" Text="{Binding Glyph}" Margin="0,0,8,0" FontWeight="Bold" VerticalAlignment="Center">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Foreground" Value="{StaticResource Good}"/>
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsInstalled}" Value="False">
+                                                                <DataTrigger Binding="{Binding IsMissingOptional}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsMissingRequired}" Value="True">
                                                                     <Setter Property="Foreground" Value="{StaticResource Danger}"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
-                                                <TextBlock Grid.Column="1" Text="{Binding Label}" TextWrapping="Wrap"/>
-                                                <Button Grid.Column="2" Content="Get" Style="{StaticResource Ghost}" Padding="8,2" FontSize="11"
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding StateText}" Foreground="{StaticResource Muted}" FontSize="11"/>
+                                                </StackPanel>
+                                                <Button Grid.Column="2" Content="Get" Style="{StaticResource Update}" Padding="10,3" FontSize="11" VerticalAlignment="Center"
                                                         Command="{Binding DataContext.InstallDepCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding Name}"
-                                                        Visibility="{Binding IsInstalled, Converter={StaticResource InvBoolToVis}}"/>
+                                                        Visibility="{Binding ShowGet, Converter={StaticResource BoolToVis}}"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+                            </StackPanel>
+
+                            <!-- dependencies note (browse mode — ESOUI API doesn't expose deps pre-install) -->
+                            <StackPanel Visibility="{Binding ShowDepAutoNote, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
+                                <TextBlock Text="DEPENDENCIES" Foreground="{StaticResource Muted}" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
+                                <TextBlock Text="Any required libraries are detected and installed automatically when you install this addon." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="12"/>
                             </StackPanel>
 
                             <!-- what's new / changelog -->

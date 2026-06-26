@@ -169,6 +169,8 @@ public class MainViewModel : ObservableObject
     public ObservableCollection<DependencyStatus> DetailDependencies { get; } = new();
     private bool _hasDependencies;
     public bool HasDependencies { get => _hasDependencies; set => SetProperty(ref _hasDependencies, value); }
+    private bool _showDepAutoNote;
+    public bool ShowDepAutoNote { get => _showDepAutoNote; set => SetProperty(ref _showDepAutoNote, value); }
     private bool _showInstall;
     public bool ShowInstall { get => _showInstall; set => SetProperty(ref _showInstall, value); }
     private bool _showManage;
@@ -318,6 +320,7 @@ public class MainViewModel : ObservableObject
         DetailDescription = a.Description;
         DetailChangeLog = "";
         DetailPageUrl = "";
+        ShowDepAutoNote = false;
         BuildDependencyList(a);
 
         if (a.Managed)
@@ -354,6 +357,7 @@ public class MainViewModel : ObservableObject
         DetailChangeLog = "";
         DetailDependencies.Clear();
         HasDependencies = false;
+        ShowDepAutoNote = true;   // browse: ESOUI API doesn't expose deps; they auto-install
 
         try
         {
@@ -373,9 +377,9 @@ public class MainViewModel : ObservableObject
         DetailDependencies.Clear();
         var installed = new HashSet<string>(Installed.Select(i => i.FolderName), StringComparer.OrdinalIgnoreCase);
         foreach (var d in a.Dependencies)
-            DetailDependencies.Add(new DependencyStatus { Name = d, IsInstalled = installed.Contains(d), IsOptional = false });
+            DetailDependencies.Add(new DependencyStatus { Name = d, IsInstalled = installed.Contains(d), IsOptional = false, IsGettable = _catalogByDir.ContainsKey(d) });
         foreach (var d in a.OptionalDependencies)
-            DetailDependencies.Add(new DependencyStatus { Name = d, IsInstalled = installed.Contains(d), IsOptional = true });
+            DetailDependencies.Add(new DependencyStatus { Name = d, IsInstalled = installed.Contains(d), IsOptional = true, IsGettable = _catalogByDir.ContainsKey(d) });
         HasDependencies = DetailDependencies.Count > 0;
     }
 

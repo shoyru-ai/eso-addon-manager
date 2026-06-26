@@ -39,17 +39,22 @@ public static class AddonScanner
         return result.OrderBy(a => a.Title, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    // ESO addon manifests can use either extension.
+    private static readonly string[] ManifestExtensions = { ".txt", ".addon" };
+
     private static string? FindManifest(string dir, string folder)
     {
-        var direct = Path.Combine(dir, folder + ".txt");
-        if (File.Exists(direct)) return direct;
-
-        foreach (var txt in Directory.GetFiles(dir, "*.txt"))
+        foreach (var ext in ManifestExtensions)
+        {
+            var direct = Path.Combine(dir, folder + ext);
+            if (File.Exists(direct)) return direct;
+        }
+        foreach (var manifest in ManifestExtensions.SelectMany(ext => Directory.GetFiles(dir, "*" + ext)))
         {
             try
             {
-                if (File.ReadLines(txt).Take(40).Any(l => l.TrimStart().StartsWith("## Title", StringComparison.OrdinalIgnoreCase)))
-                    return txt;
+                if (File.ReadLines(manifest).Take(40).Any(l => l.TrimStart().StartsWith("## Title", StringComparison.OrdinalIgnoreCase)))
+                    return manifest;
             }
             catch { /* unreadable file – skip */ }
         }
