@@ -1,5 +1,6 @@
 using System.Net.Http;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
 
 namespace EsoAddons.Services;
@@ -36,9 +37,8 @@ public class UpdateChecker
         try
         {
             var cur = currentVersion ?? CurrentVersion;
-            return IncludePrereleases
-                ? ParseReleasesList(await _http.GetStringAsync(AllReleasesUrl), cur)
-                : ParseLatestRelease(await _http.GetStringAsync(LatestUrl), cur);
+            // Always pull the list so we can aggregate notes across every version we're behind.
+            return ParseReleasesList(await _http.GetStringAsync(AllReleasesUrl), cur, IncludePrereleases);
         }
         catch { return null; }
     }
@@ -50,22 +50,45 @@ public class UpdateChecker
         return ParseRelease(doc.RootElement, currentVersion);
     }
 
-    /// <summary>Parses a GitHub /releases LIST (array, incl. pre-releases) and returns the HIGHEST-version
-    /// release — used by the PPE channel so a pre-release with a higher version is offered. (Static = testable.)</summary>
-    public static UpdateInfo? ParseReleasesList(string json, string currentVersion)
+    /// <summary>Parses a GitHub /releases LIST. Returns the HIGHEST applicable release as the update target,
+    /// with its Notes set to the AGGREGATED notes of every applicable release newer than the current version
+    /// (newest first, each under a "vX.Y.Z" header) — so a user several versions behind sees the changelog
+    /// for each. Drafts are always skipped; pre-releases are included only when <paramref name="includePrereleases"/>
+    /// (the PPE channel). (Static = testable.)</summary>
+    public static UpdateInfo? ParseReleasesList(string json, string currentVersion, bool includePrereleases = true)
     {
         using var doc = JsonDocument.Parse(json);
         if (doc.RootElement.ValueKind != JsonValueKind.Array) return null;
 
-        UpdateInfo? best = null;
+        UpdateInfo? target = null;
+        var newer = new List<UpdateInfo>();
         foreach (var r in doc.RootElement.EnumerateArray())
         {
             if (r.TryGetProperty("draft", out var d) && d.ValueKind == JsonValueKind.True) continue;
+            if (!includePrereleases && r.TryGetProperty("prerelease", out var p) && p.ValueKind == JsonValueKind.True) continue;
             var info = ParseRelease(r, currentVersion);
             if (info is null) continue;
-            if (best is null || VersionCompare.IsNewer(info.Version, best.Version)) best = info;
+            if (target is null || VersionCompare.IsNewer(info.Version, target.Version)) target = info;
+            if (info.IsNewer) newer.Add(info);   // strictly newer than the current version
         }
-        return best;
+        if (target is null) return null;
+
+        // newest-first
+        newer.Sort((a, b) => VersionCompare.IsNewer(a.Version, b.Version) ? -1
+                           : VersionCompare.IsNewer(b.Version, a.Version) ? 1 : 0);
+
+        if (newer.Count > 1)
+        {
+            var sb = new StringBuilder();
+            foreach (var i in newer)
+            {
+                if (sb.Length > 0) sb.Append("\n\n──────────────────\n\n");
+                var body = string.IsNullOrWhiteSpace(i.Notes) ? "(no notes)" : i.Notes.Trim();
+                sb.Append("v").Append(i.Version).Append("\n\n").Append(body);
+            }
+            return target with { Notes = sb.ToString() };
+        }
+        return target;
     }
 
     /// <summary>Builds UpdateInfo from a single release JSON object.</summary>
