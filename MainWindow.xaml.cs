@@ -52,7 +52,7 @@ public partial class MainWindow : Window
         Diag.Log($"ApplyAppUpdateAsync url={url}");
         if (string.IsNullOrEmpty(url)) { OpenUrl(_vm.AppUpdateReleaseUrl); return; }
 
-        _vm.Status = $"Downloading update v{_vm.AppUpdateVersion}…";
+        _vm.Status = $"Updating to v{_vm.AppUpdateVersion}… the app will restart automatically.";
         bool ok;
         try { ok = await AppUpdater.DownloadAndApplyAsync(url); }
         catch (Exception ex) { Diag.Log("AppUpdater threw: " + ex); ok = false; }

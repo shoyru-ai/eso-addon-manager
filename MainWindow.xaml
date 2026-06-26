@@ -245,7 +245,7 @@
                 </TabItem>
 
                 <!-- Shoyru's published addons -->
-                <TabItem Header="Shoyru's Addons">
+                <TabItem Header="Shoyru's Custom Addons">
                     <Grid Background="{StaticResource Panel}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
