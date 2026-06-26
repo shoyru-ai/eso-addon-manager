@@ -138,8 +138,10 @@ public partial class MainWindow : Window
 
         var win = new Window
         {
-            Title = $"What's New — v{_vm.AppUpdateVersion}",
-            Width = 540, Height = 480, MinWidth = 380, MinHeight = 260,
+            Title = $"Release Notes - v{_vm.AppUpdateVersion}",
+            Width = 520, MinWidth = 360,
+            SizeToContent = SizeToContent.Height,   // grow/shrink to fit the notes; long notes cap via the scroller
+            MaxHeight = 640,
             Owner = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Background = B("Bg", "#1E1E1E"),
@@ -154,7 +156,7 @@ public partial class MainWindow : Window
 
         var header = new TextBlock
         {
-            Text = $"What's New in v{_vm.AppUpdateVersion}",
+            Text = $"Release Notes — v{_vm.AppUpdateVersion}",
             Foreground = B("Text", "#E6E6E6"),
             FontSize = 18, FontWeight = FontWeights.Bold,
             Margin = new Thickness(0, 0, 0, 12),
@@ -165,6 +167,7 @@ public partial class MainWindow : Window
         var scroller = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            MaxHeight = 440,   // beyond this, long notes scroll instead of growing the window
             Content = new Border
             {
                 Background = B("Panel", "#252526"),
