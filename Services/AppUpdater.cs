@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 namespace EsoAddons.Services;
 
@@ -22,6 +23,16 @@ public static class AppUpdater
         var tempExe = Path.Combine(Path.GetTempPath(), "ESOAddons.update.exe");
         var cmdPath = Path.Combine(Path.GetTempPath(), "ESOAddons.update.cmd");
 
+        // Preserve the original launch args (e.g. --addons "<clean folder>") so the relaunched
+        // build behaves identically. Drop --selfupdate so we never relaunch into headless mode.
+        static string Quote(string a) => a.Length == 0 || a.Contains(' ') ? $"\"{a}\"" : a;
+        var passthru = string.Join(" ", Environment.GetCommandLineArgs().Skip(1)
+            .Where(a => !a.Equals("--selfupdate", StringComparison.OrdinalIgnoreCase))
+            .Select(Quote));
+        var relaunch = passthru.Length > 0
+            ? $@"start """" ""{current}"" {passthru}"
+            : $@"start """" ""{current}""";
+
         // Batch helper. Note: this is a .cmd FILE, so FOR vars use %%; plain vars use single %.
         // goto-style loops re-parse each line, so %tries% updates without delayed expansion.
         var script =
@@ -39,7 +50,7 @@ for %%A in (""{tempExe}"") do set sz=%%~zA
 echo helper: downloaded size=%sz% >> ""{log}""
 if %sz% LSS 1000000 (
   echo helper: download failed/too small - relaunching current build >> ""{log}""
-  start """" ""{current}""
+  {relaunch}
   goto cleanup
 )
 set tries=0
@@ -50,14 +61,14 @@ set /a tries+=1
 echo helper: copy locked, retry %tries% >> ""{log}""
 if %tries% GEQ 20 (
   echo helper: copy still failing - relaunching current build >> ""{log}""
-  start """" ""{current}""
+  {relaunch}
   goto cleanup
 )
 ping -n 2 127.0.0.1 >nul
 goto copyloop
 :copied
 echo helper: swapped OK - relaunching new build >> ""{log}""
-start """" ""{current}""
+{relaunch}
 :cleanup
 del ""{tempExe}"" >nul 2>&1
 (goto) 2>nul & del ""%~f0""
