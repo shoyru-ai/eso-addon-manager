@@ -19,7 +19,7 @@ public class LicenseService
     /// Set this so keys from other Lemon Squeezy products can't unlock Pro.</summary>
     public const string ExpectedProductId = "";
     /// <summary>The Pro checkout link (Lemon Squeezy "Buy" URL).</summary>
-    public const string CheckoutUrl = "https://shoyru.lemonsqueezy.com/buy/REPLACE-ME";
+    public const string CheckoutUrl = "https://shoyruai.lemonsqueezy.com/checkout/buy/72acd5b2-5542-48a2-8cef-e94bf3333ada";
     /// <summary>Optional "Support Shoyru" donation link.</summary>
     public const string SupportUrl = "https://ko-fi.com/shoyru";
     // ---------------------------------------------------------------------------------
