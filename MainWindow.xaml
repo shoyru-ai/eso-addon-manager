@@ -276,7 +276,7 @@
                 </TabItem>
 
                 <!-- Shoyru's published addons -->
-                <TabItem x:Name="CustomAddonsTab" Header="Shoyru's Custom Addons">
+                <TabItem x:Name="CustomAddonsTab" Header="Browse Shoyru's Custom Addons">
                     <Grid Background="{StaticResource Panel}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
