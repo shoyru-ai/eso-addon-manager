@@ -191,7 +191,7 @@
                                 </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="Installed" Binding="{Binding DisplayVersion}" Width="*"/>
                                 <DataGridTextColumn Header="Latest" Binding="{Binding LatestVersion}" Width="*"/>
-                                <DataGridTextColumn Header="Updated" Binding="{Binding LastUpdated}" SortMemberPath="LastUpdateMs" Width="*"/>
+                                <DataGridTextColumn Header="Released" Binding="{Binding LastUpdated}" SortMemberPath="LastUpdateMs" Width="*"/>
                                 <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="*"
                                                     Visibility="{Binding Data.IsPro, Source={StaticResource VmProxy}, Converter={StaticResource BoolToVis}}"/>
                                 <DataGridTemplateColumn Header="" Width="Auto" MinWidth="170" CanUserSort="False">
@@ -277,7 +277,7 @@
                                 <DataGridTextColumn Header="Addon" Binding="{Binding Title}" Width="2*"/>
                                 <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="*"/>
                                 <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="*"/>
-                                <DataGridTextColumn Header="Updated" Binding="{Binding LastUpdated}" SortMemberPath="LastUpdateMs" Width="*"/>
+                                <DataGridTextColumn Header="Released" Binding="{Binding LastUpdated}" SortMemberPath="LastUpdateMs" Width="*"/>
                                 <DataGridTextColumn Header="Downloads" Binding="{Binding DownloadsDisplay}" SortMemberPath="Downloads" Width="*"/>
                                 <DataGridTemplateColumn Header="" Width="Auto" MinWidth="100" CanUserSort="False">
                                     <DataGridTemplateColumn.CellTemplate>

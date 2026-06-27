@@ -85,7 +85,7 @@ public partial class MainWindow : Window
         var win = new Window
         {
             Title = "Shoyru Addon Suite - Pro",
-            Width = 490, MinWidth = 460,
+            Width = 540, MinWidth = 500,
             SizeToContent = SizeToContent.Height,
             Owner = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -214,8 +214,8 @@ public partial class MainWindow : Window
 
         var grid = new Grid { Margin = new Thickness(0, 2, 0, 14) };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         foreach (var _ in rows) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
@@ -237,8 +237,9 @@ public partial class MainWindow : Window
         {
             var tb = new TextBlock
             {
-                Text = you ? t + "  (you)" : t,
-                TextAlignment = TextAlignment.Center, FontWeight = FontWeights.Bold, FontSize = 14,
+                Text = you ? t + " (you)" : t,
+                TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap,
+                FontWeight = FontWeights.Bold, FontSize = 14,
                 Foreground = you ? B("Accent", "#5B8DEF") : B("Text", "#E6E6E6"),
                 Margin = new Thickness(0, 0, 0, 7),
             };
