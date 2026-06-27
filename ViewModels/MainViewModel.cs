@@ -92,7 +92,7 @@ public class MainViewModel : ObservableObject
         if (!res.Ok)
             return Status = "That key couldn't be activated (it may have reached its device limit).";
         if (!LicenseService.ProductMatches(res.ProductId))
-            return Status = "That key isn't for Shoyru's ESO Addons Pro.";
+            return Status = "That key isn't for Shoyru Addon Suite Pro.";
         if (res.Status != "active")
             return Status = $"That key is {res.Status} (not active).";
 

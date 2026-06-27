@@ -16,7 +16,7 @@ public partial class App : Application
         var ppe = e.Args.Any(a => a.Equals("--ppe", StringComparison.OrdinalIgnoreCase));
 
         // Headless self-update mode (used for testing + a silent-update entry point):
-        //   "Shoyru's ESO Addons.exe" --selfupdate
+        //   "Shoyru Addon Suite.exe" --selfupdate
         if (e.Args.Contains("--selfupdate"))
         {
             _ = RunSelfUpdateAsync(ppe);
@@ -24,7 +24,7 @@ public partial class App : Application
         }
 
         // Optional folder override (used to give the sandbox a clean, junction-free AddOns folder):
-        //   "Shoyru's ESO Addons.exe" --addons "C:\path\to\AddOns"
+        //   "Shoyru Addon Suite.exe" --addons "C:\path\to\AddOns"
         var addonsOverride = CliArgs.GetOption(e.Args, "--addons");
         new MainWindow(addonsOverride, ppe).Show();
     }

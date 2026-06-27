@@ -36,11 +36,11 @@ dotnet publish $proj -c Release -r win-x64 --self-contained true `
 Remove-Item (Join-Path $app "*.pdb") -Force -ErrorAction SilentlyContinue
 
 @"
-Shoyru's ESO Addons - a lightweight addon manager for The Elder Scrolls Online
-==============================================================================
+Shoyru Addon Suite - the complete addon manager for The Elder Scrolls Online
+============================================================================
 
 HOW TO RUN
-  Double-click "Shoyru ESO Addons.exe". Nothing to install (.NET is bundled).
+  Double-click "Shoyru Addon Suite.exe". Nothing to install (.NET is bundled).
   First launch: Windows SmartScreen may warn (unsigned) -> More info -> Run anyway.
 
 REQUIREMENTS
@@ -57,9 +57,9 @@ Data comes from the public ESOUI (mmoui) API. No account needed.
 "@ | Out-File -Encoding utf8 (Join-Path $app "README.txt")
 
 # Clean-named assets (no apostrophe/space) for the release
-$assetExe = Join-Path $dist "Shoyrus-ESO-Addons.exe"
-Copy-Item (Join-Path $app "Shoyru ESO Addons.exe") $assetExe -Force
-$zip = Join-Path $dist "Shoyrus-ESO-Addons-v$Version.zip"
+$assetExe = Join-Path $dist "Shoyru-Addon-Suite.exe"
+Copy-Item (Join-Path $app "Shoyru Addon Suite.exe") $assetExe -Force
+$zip = Join-Path $dist "Shoyru-Addon-Suite-v$Version.zip"
 Compress-Archive -Path (Join-Path $app '*') -DestinationPath $zip -Force
 
 $channel = if ($Prerelease) { "PPE (pre-release)" } else { "PROD (latest)" }

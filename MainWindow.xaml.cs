@@ -71,7 +71,7 @@ public partial class MainWindow : Window
 
         var win = new Window
         {
-            Title = "Shoyru's ESO Addons - Pro",
+            Title = "Shoyru Addon Suite - Pro",
             Width = 460, MinWidth = 420,
             SizeToContent = SizeToContent.Height,
             Owner = this,
