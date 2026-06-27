@@ -17,11 +17,9 @@ public static class ThemeManager
         var r = Application.Current?.Resources;
         if (r is null) return;
 
-        void Set(string key, string hex)
-        {
-            if (r[key] is SolidColorBrush b && !b.IsFrozen)
-                b.Color = (Color)ColorConverter.ConvertFromString(hex);
-        }
+        // Replace the brush instances (the changing keys are referenced via DynamicResource, so this
+        // updates the whole UI live — mutating a StaticResource brush's Color would NOT propagate).
+        void Set(string key, string hex) => r[key] = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
 
         if (light)
         {

@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -79,7 +79,7 @@ public partial class MainWindow : Window
             Owner = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Background = B("Bg", "#1E1E1E"),
-            FontFamily = new FontFamily("Segoe UI"),
+            FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
             ResizeMode = ResizeMode.NoResize,
             ShowInTaskbar = false,
         };
@@ -132,10 +132,19 @@ public partial class MainWindow : Window
         }
         else
         {
-            var remove = new Button { Content = "Remove from this device", HorizontalAlignment = HorizontalAlignment.Left };
+            var removeRow = new StackPanel { Orientation = Orientation.Horizontal };
+            var remove = new Button { Content = "Remove from this device", Margin = new Thickness(0, 0, 8, 0) };
             if (TryFindResource("Ghost") is Style gs) remove.Style = gs;
             remove.Click += async (_, _) => { await _vm.RemoveLicenseAsync(); win.Close(); };
-            panel.Children.Add(remove);
+            var info = new TextBlock
+            {
+                Text = "ⓘ", FontSize = 15, Foreground = B("Muted", "#9A9A9A"),
+                VerticalAlignment = VerticalAlignment.Center, Cursor = System.Windows.Input.Cursors.Help,
+                ToolTip = "Removes Pro from THIS PC and frees its activation seat — so you can use your license key on another computer. Re-enter your key here anytime to reactivate.",
+            };
+            removeRow.Children.Add(remove);
+            removeRow.Children.Add(info);
+            panel.Children.Add(removeRow);
         }
 
         panel.Children.Add(status);
@@ -158,7 +167,7 @@ public partial class MainWindow : Window
         {
             ("Browse, search & install addons", true,  true),
             ("Remove addons",                   true,  true),
-            ("See required dependencies",       true,  true),
+            ("See & install dependencies",      true,  true),
             ("Update addons (incl. Update All)",false, true),
             ("Auto-install dependencies",       false, true),
             ("Dark / light theme",              false, true),
@@ -198,6 +207,12 @@ public partial class MainWindow : Window
             };
             return tb;
         }
+        var featHdr = new TextBlock
+        {
+            Text = "Feature", FontWeight = FontWeights.Bold, FontSize = 12, Foreground = B("Muted", "#9A9A9A"),
+            Margin = new Thickness(0, 0, 0, 7), VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(featHdr, 0); Grid.SetRow(featHdr, 0); grid.Children.Add(featHdr);
         var fh = Hdr("Free", yourCol == 1); Grid.SetColumn(fh, 1); Grid.SetRow(fh, 0); grid.Children.Add(fh);
         var ph = Hdr("Pro", yourCol == 2); Grid.SetColumn(ph, 2); Grid.SetRow(ph, 0); grid.Children.Add(ph);
 
@@ -239,7 +254,7 @@ public partial class MainWindow : Window
             Owner = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Background = B("Bg", "#1E1E1E"),
-            FontFamily = new FontFamily("Segoe UI"),
+            FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
             ResizeMode = ResizeMode.NoResize,
             ShowInTaskbar = false,
         };
@@ -309,7 +324,7 @@ public partial class MainWindow : Window
             Owner = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Background = B("Bg", "#1E1E1E"),
-            FontFamily = new FontFamily("Segoe UI"),
+            FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
             ShowInTaskbar = false,
         };
 
