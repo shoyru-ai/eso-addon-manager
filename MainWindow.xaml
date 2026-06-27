@@ -153,6 +153,8 @@
                                         ToolTip="Updating addons is a Pro feature"
                                         Visibility="{Binding ShowProUpdateNudge, Converter={StaticResource BoolToVis}}"/>
                             </StackPanel>
+                            <TextBlock Text="{Binding MissingDepsSummary}" Foreground="{StaticResource Danger}" FontSize="12" Margin="0,6,0,0"
+                                       TextWrapping="Wrap" Visibility="{Binding AnyMissingDeps, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                         <DataGrid Grid.Row="2" ItemsSource="{Binding InstalledView}" SelectedItem="{Binding SelectedInstalled}" Margin="6,0,6,6">
                             <DataGrid.Columns>
@@ -163,7 +165,19 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Addon" Binding="{Binding Title}" Width="2*"/>
+                                <DataGridTemplateColumn Header="Addon" Width="2*" SortMemberPath="Title">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="⚠" Foreground="{StaticResource Danger}" FontWeight="Bold" Margin="0,0,6,0"
+                                                           VerticalAlignment="Center" ToolTip="{Binding HealthTooltip}"
+                                                           Visibility="{Binding HasMissingDeps, Converter={StaticResource BoolToVis}}"/>
+                                                <TextBlock Text="{Binding Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding HealthTooltip}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="Installed" Binding="{Binding DisplayVersion}" Width="*"/>
                                 <DataGridTextColumn Header="Latest" Binding="{Binding LatestVersion}" Width="*"/>
                                 <DataGridTemplateColumn Header="" Width="Auto" MinWidth="170" CanUserSort="False">

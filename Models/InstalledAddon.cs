@@ -42,6 +42,19 @@ public class InstalledAddon : ObservableObject
         set { if (SetProperty(ref _recordedVersion, value)) { OnPropertyChanged(nameof(UpdateAvailable)); OnPropertyChanged(nameof(ShowUpdate)); OnPropertyChanged(nameof(DisplayVersion)); } }
     }
 
+    // Health: required dependencies that aren't installed (set by the VM from the installed set).
+    private string _missingDeps = "";
+    public string MissingDeps
+    {
+        get => _missingDeps;
+        set { if (SetProperty(ref _missingDeps, value)) { OnPropertyChanged(nameof(HasMissingDeps)); OnPropertyChanged(nameof(HealthTooltip)); } }
+    }
+    /// <summary>True when this addon is missing a required dependency and likely won't work in-game.</summary>
+    public bool HasMissingDeps => _missingDeps.Length > 0;
+    public string HealthTooltip => HasMissingDeps
+        ? $"May not work — missing required dependency: {_missingDeps}"
+        : "All dependencies present";
+
     public bool Managed => !string.IsNullOrEmpty(EsouiId);
 
     /// <summary>Version shown in the list: the recorded ESOUI version if we have one, else the manifest version.</summary>

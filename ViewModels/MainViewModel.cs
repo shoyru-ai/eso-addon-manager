@@ -397,6 +397,13 @@ public class MainViewModel : ObservableObject
     public int UpdateCount { get => _updateCount; set { if (SetProperty(ref _updateCount, value)) { OnPropertyChanged(nameof(UpdateSummary)); OnPropertyChanged(nameof(ShowProUpdateNudge)); } } }
     public string UpdateSummary => UpdateCount == 0 ? "All up to date" : $"{UpdateCount} update(s) available";
 
+    private int _missingDepsCount;
+    public int MissingDepsCount { get => _missingDepsCount; set { if (SetProperty(ref _missingDepsCount, value)) { OnPropertyChanged(nameof(AnyMissingDeps)); OnPropertyChanged(nameof(MissingDepsSummary)); } } }
+    public bool AnyMissingDeps => MissingDepsCount > 0;
+    public string MissingDepsSummary => MissingDepsCount == 1
+        ? "⚠ 1 installed addon is missing a required dependency"
+        : $"⚠ {MissingDepsCount} installed addons are missing required dependencies";
+
     // ---- load ----
     public async Task LoadAsync(bool refreshCatalog = false)
     {
@@ -455,7 +462,13 @@ public class MainViewModel : ObservableObject
             Installed.Add(a);
         }
         RecountUpdates();
-        foreach (var a in Installed) a.ProUpdates = IsPro;   // updates are Pro
+        var installedSet = new HashSet<string>(Installed.Select(i => i.FolderName), StringComparer.OrdinalIgnoreCase);
+        foreach (var a in Installed)
+        {
+            a.ProUpdates = IsPro;   // updates are Pro
+            a.MissingDeps = string.Join(", ", a.Dependencies.Where(d => !installedSet.Contains(d)));   // health check
+        }
+        MissingDepsCount = Installed.Count(a => a.HasMissingDeps);
         InstalledView.Refresh();
 
         // Preserve the detail selection across the rescan so the detail pane — and its

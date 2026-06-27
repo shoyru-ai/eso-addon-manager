@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>EsoAddons</RootNamespace>
     <AssemblyName>Shoyru Addon Suite</AssemblyName>
-    <Version>0.3.14</Version>
+    <Version>0.3.15</Version>
     <ApplicationIcon>appicon.ico</ApplicationIcon>
   </PropertyGroup>
 
