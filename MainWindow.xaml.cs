@@ -391,13 +391,7 @@ public partial class MainWindow : Window
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(12),
-                Child = new TextBlock
-                {
-                    Text = notes,
-                    Foreground = B("Text", "#E6E6E6"),
-                    TextWrapping = TextWrapping.Wrap,
-                    FontSize = 15, LineHeight = 19,
-                },
+                Child = BuildNotesView(notes, B),
             },
         };
         Grid.SetRow(scroller, 1);
@@ -422,6 +416,55 @@ public partial class MainWindow : Window
 
         win.Content = grid;
         win.ShowDialog();
+    }
+
+    /// <summary>Renders aggregated release notes line-by-line, bolding version headers (vX.Y.Z) and section
+    /// headers. A line is treated as a section header if it's "## Foo", "**Foo**", or a short line ending in
+    /// ":" — so notes read as a structured changelog instead of a flat blob.</summary>
+    private UIElement BuildNotesView(string notes, Func<string, string, Brush> B)
+    {
+        var panel = new StackPanel();
+        foreach (var raw in notes.Replace("\r", "").Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.Length == 0) { panel.Children.Add(new Border { Height = 5 }); continue; }
+
+            // divider rows from the per-version aggregation
+            if (line.Length >= 4 && line.All(c => c is '─' or '-' or '—'))
+            {
+                panel.Children.Add(new Border
+                {
+                    Height = 1, Background = B("Border", "#3A3A3A"),
+                    Margin = new Thickness(0, 8, 0, 8),
+                });
+                continue;
+            }
+
+            bool isVersion = line.Length > 1 && (line[0] is 'v' or 'V') && char.IsDigit(line[1]);
+            string? headerText =
+                line.StartsWith("## ") ? line[3..].Trim()
+                : line.StartsWith("**") && line.EndsWith("**") && line.Length > 4 ? line[2..^2].Trim()
+                : !line.StartsWith("-") && line.EndsWith(":") && line.Length <= 42 ? line
+                : null;
+
+            var tb = new TextBlock { TextWrapping = TextWrapping.Wrap, LineHeight = 20, Foreground = B("Text", "#E6E6E6") };
+            if (isVersion)
+            {
+                tb.Text = line; tb.FontWeight = FontWeights.Bold; tb.FontSize = 16;
+                tb.Foreground = B("Accent", "#5B8DEF"); tb.Margin = new Thickness(0, 6, 0, 4);
+            }
+            else if (headerText is not null)
+            {
+                tb.Text = headerText; tb.FontWeight = FontWeights.Bold; tb.FontSize = 14;
+                tb.Margin = new Thickness(0, 7, 0, 2);
+            }
+            else
+            {
+                tb.Text = line; tb.FontSize = 14; tb.Margin = new Thickness(0, 1, 0, 1);
+            }
+            panel.Children.Add(tb);
+        }
+        return panel;
     }
 
     private async System.Threading.Tasks.Task ApplyAppUpdateAsync()
