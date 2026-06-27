@@ -17,7 +17,7 @@ public class LicenseService
     // ----- TODO: fill these in after creating the "Pro" product in Lemon Squeezy -----
     /// <summary>Your Pro product id (from the Lemon Squeezy product). Empty = accept any (dev mode).
     /// Set this so keys from other Lemon Squeezy products can't unlock Pro.</summary>
-    public const string ExpectedProductId = "";
+    public const string ExpectedProductId = "1178447";
     /// <summary>The Pro checkout link (Lemon Squeezy "Buy" URL).</summary>
     public const string CheckoutUrl = "https://shoyruai.lemonsqueezy.com/checkout/buy/72acd5b2-5542-48a2-8cef-e94bf3333ada";
     /// <summary>Optional "Support Shoyru" donation link.</summary>
