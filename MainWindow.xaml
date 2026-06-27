@@ -85,23 +85,23 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" Orientation="Horizontal">
-                <TextBlock Text="Shoyru Addon Suite" FontSize="22" FontWeight="Bold"/>
+                <TextBlock Text="Shoyru Addon Suite" FontSize="24" FontWeight="Bold"/>
                 <Border Background="{DynamicResource PanelAlt}" CornerRadius="4" Padding="6,1" Margin="10,0,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding AppVersion}" Foreground="{DynamicResource Muted}" FontSize="12" FontWeight="SemiBold"
+                    <TextBlock Text="{Binding AppVersion}" Foreground="{DynamicResource Muted}" FontSize="14" FontWeight="SemiBold"
                                ToolTip="Running version"/>
                 </Border>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0"
                             Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}" ToolTip="Pro — verified license active on this device">
                     <Grid Width="17" Height="17">
                         <Ellipse Fill="{StaticResource Accent}"/>
-                        <TextBlock Text="✓" Foreground="White" FontSize="10" FontWeight="Bold"
+                        <TextBlock Text="✓" Foreground="White" FontSize="12" FontWeight="Bold"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Grid>
-                    <TextBlock Text="Pro" Foreground="{StaticResource Accent}" FontSize="13" FontWeight="Bold"
+                    <TextBlock Text="Pro" Foreground="{StaticResource Accent}" FontSize="15" FontWeight="Bold"
                                Margin="4,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
             </StackPanel>
-            <TextBlock Grid.Column="1" Text="{Binding AddonsPath}" Foreground="{DynamicResource Muted}" FontSize="12"
+            <TextBlock Grid.Column="1" Text="{Binding AddonsPath}" Foreground="{DynamicResource Muted}" FontSize="14"
                        Margin="14,0,12,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding AddonsPath}"/>
             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="Get Pro" Style="{StaticResource Update}" Click="ManageLicense_Click" Margin="0,0,8,0"
@@ -157,14 +157,14 @@
                                          ToolTip="Filter your installed addons by name, author, or folder"/>
                             </DockPanel>
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding UpdateSummary}" FontSize="13" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding UpdateSummary}" FontSize="15" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
                                 <Button Content="Update All" Style="{StaticResource Update}" Command="{Binding UpdateAllCommand}" Margin="14,0,0,0"
                                         Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
                                 <Button Content="🔒 Update All (Pro)" Style="{StaticResource Ghost}" Click="ManageLicense_Click" Margin="14,0,0,0"
                                         ToolTip="Updating addons is a Pro feature"
                                         Visibility="{Binding ShowProUpdateNudge, Converter={StaticResource BoolToVis}}"/>
                             </StackPanel>
-                            <TextBlock Text="{Binding MissingDepsSummary}" Foreground="{StaticResource Danger}" FontSize="12" Margin="0,6,0,0"
+                            <TextBlock Text="{Binding MissingDepsSummary}" Foreground="{StaticResource Danger}" FontSize="14" Margin="0,6,0,0"
                                        TextWrapping="Wrap" Visibility="{Binding AnyMissingDeps, Converter={StaticResource BoolToVis}}"/>
                         </StackPanel>
                         <DataGrid Grid.Row="2" ItemsSource="{Binding InstalledView}" SelectedItem="{Binding SelectedInstalled}" Margin="6,0,6,6">
@@ -198,7 +198,7 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}" FontSize="12" Margin="0,0,8,0"/>
+                                                <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}" FontSize="14" Margin="0,0,8,0"/>
                                                 <Button Content="Update" Style="{StaticResource Update}" Padding="10,4" Margin="0,0,6,0"
                                                         Visibility="{Binding ShowUpdate, Converter={StaticResource BoolToVis}}"
                                                         Command="{Binding DataContext.UpdateCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
@@ -226,7 +226,7 @@
 
                         <!-- category sidebar -->
                         <DockPanel Grid.Column="0" Margin="8,12,4,8">
-                            <TextBlock DockPanel.Dock="Top" Text="CATEGORIES" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="11" Margin="8,0,0,6"/>
+                            <TextBlock DockPanel.Dock="Top" Text="CATEGORIES" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="8,0,0,6"/>
                             <ListBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}" HorizontalContentAlignment="Stretch">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
@@ -283,8 +283,8 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}" FontSize="12" Margin="0,0,8,0"/>
-                                                <TextBlock Text="✓ Installed" Foreground="{StaticResource Good}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}" FontSize="14" Margin="0,0,8,0"/>
+                                                <TextBlock Text="✓ Installed" Foreground="{StaticResource Good}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"
                                                            Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVis}}"/>
                                                 <Button Content="Remove" Style="{StaticResource Ghost}" Padding="10,4"
                                                         Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVis}}"
@@ -312,7 +312,7 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="14,12,12,8">
-                            <TextBlock Text="Addons created by Shoyru — install them directly." Foreground="{DynamicResource Muted}" FontSize="13" VerticalAlignment="Center"/>
+                            <TextBlock Text="Addons created by Shoyru — install them directly." Foreground="{DynamicResource Muted}" FontSize="15" VerticalAlignment="Center"/>
                             <Button Content="View on GitHub" Style="{StaticResource Ghost}" Command="{Binding OpenMyAddonsRepoCommand}" Margin="14,0,0,0"/>
                         </StackPanel>
                         <ListBox Grid.Row="1" ItemsSource="{Binding MyAddons}" SelectedItem="{Binding SelectedMyAddon}"
@@ -349,11 +349,11 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
-                                            <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{Binding StatusLabel}" Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,1,0,0"/>
+                                            <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding StatusLabel}" Foreground="{DynamicResource Muted}" FontSize="13" Margin="0,1,0,0"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}" FontSize="11" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}" FontSize="13" Margin="0,0,8,0" VerticalAlignment="Center"/>
                                             <Button Content="Install" Style="{StaticResource Primary}" Padding="10,4" Margin="0,0,6,0"
                                                     Visibility="{Binding ShowInstall, Converter={StaticResource BoolToVis}}"
                                                     Command="{Binding DataContext.InstallMyAddonCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
@@ -376,8 +376,8 @@
                         <Border Grid.RowSpan="2" Background="{DynamicResource Panel}"
                                 Visibility="{Binding CustomAddonsUnlocked, Converter={StaticResource InvBoolToVis}}">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="380" Margin="20">
-                                <TextBlock Text="&#x1F512;" FontSize="40" HorizontalAlignment="Center" Foreground="{DynamicResource Muted}"/>
-                                <TextBlock Text="Shoyru's Custom Addons" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,8,0,4" Foreground="{DynamicResource Text}"/>
+                                <TextBlock Text="&#x1F512;" FontSize="42" HorizontalAlignment="Center" Foreground="{DynamicResource Muted}"/>
+                                <TextBlock Text="Shoyru's Custom Addons" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,8,0,4" Foreground="{DynamicResource Text}"/>
                                 <TextBlock Text="This tab is password-protected. Enter the access password to view and install Shoyru's custom addons."
                                            TextWrapping="Wrap" TextAlignment="Center" Foreground="{DynamicResource Muted}" Margin="0,0,0,16"/>
                                 <Button Content="Enter Password" Style="{StaticResource Primary}" HorizontalAlignment="Center" Click="UnlockCustomAddons_Click"/>
@@ -405,8 +405,8 @@
                                     Visibility="{Binding HasDetailImage, Converter={StaticResource BoolToVis}}">
                                 <Image b:ImageLoader.SourceUrl="{Binding DetailImageUrl}" Stretch="Uniform" Margin="6"/>
                             </Border>
-                            <TextBlock Text="{Binding DetailTitle}" FontSize="17" FontWeight="Bold" TextWrapping="Wrap"/>
-                            <TextBlock Text="{Binding DetailMeta}" Foreground="{DynamicResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,10"/>
+                            <TextBlock Text="{Binding DetailTitle}" FontSize="19" FontWeight="Bold" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding DetailMeta}" Foreground="{DynamicResource Muted}" FontSize="14" TextWrapping="Wrap" Margin="0,4,0,10"/>
 
                             <!-- actions -->
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
@@ -442,7 +442,7 @@
 
                             <!-- category assignment (Pro; installed addons only) -->
                             <StackPanel Visibility="{Binding ShowCategoryEditor, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
-                                <TextBlock Text="CATEGORY" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
+                                <TextBlock Text="CATEGORY" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
                                 <DockPanel>
                                     <Button DockPanel.Dock="Right" Content="Set" Style="{StaticResource Update}" Padding="12,4" Margin="6,0,0,0"
                                             Click="SetCategory_Click"/>
@@ -450,13 +450,13 @@
                                               Text="{Binding DetailCategoryInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               ToolTip="Type a new category or pick an existing one, then click Set"/>
                                 </DockPanel>
-                                <TextBlock Text="Group your Installed list into custom buckets. Leave blank and Set to clear."
-                                           Foreground="{DynamicResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                <TextBlock Text="{Binding DetailCategoryHint}"
+                                           Foreground="{DynamicResource Muted}" FontSize="14" TextWrapping="Wrap" Margin="0,4,0,0"/>
                             </StackPanel>
 
                             <!-- dependencies — status list + one-click Get (free; auto-install on install is Pro) -->
                             <StackPanel Visibility="{Binding HasDependencies, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
-                                <TextBlock Text="DEPENDENCIES" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
+                                <TextBlock Text="DEPENDENCIES" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
                                 <ItemsControl ItemsSource="{Binding DetailDependencies}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -471,7 +471,7 @@
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Foreground" Value="{StaticResource Good}"/>
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsMissingOptional}" Value="True">
+                                                                <DataTrigger Binding="{Binding IsMissingSoft}" Value="True">
                                                                     <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
                                                                 </DataTrigger>
                                                                 <DataTrigger Binding="{Binding IsMissingRequired}" Value="True">
@@ -483,9 +483,9 @@
                                                 </TextBlock>
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                     <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
-                                                    <TextBlock Text="{Binding StateText}" Foreground="{DynamicResource Muted}" FontSize="11"/>
+                                                    <TextBlock Text="{Binding StateText}" Foreground="{DynamicResource Muted}" FontSize="13"/>
                                                 </StackPanel>
-                                                <Button Grid.Column="2" Content="Get" Style="{StaticResource Update}" Padding="10,3" FontSize="11" VerticalAlignment="Center"
+                                                <Button Grid.Column="2" Content="Get" Style="{StaticResource Update}" Padding="10,3" FontSize="13" VerticalAlignment="Center"
                                                         Command="{Binding DataContext.InstallDepCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding Name}"
                                                         Visibility="{Binding ShowGet, Converter={StaticResource BoolToVis}}"/>
@@ -498,22 +498,22 @@
 
                             <!-- dependencies note (browse mode — ESOUI API doesn't expose deps pre-install) -->
                             <StackPanel Visibility="{Binding ShowDepAutoNote, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
-                                <TextBlock Text="DEPENDENCIES" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
-                                <TextBlock Text="Required libraries are installed automatically with Pro." TextWrapping="Wrap" Foreground="{DynamicResource Muted}" FontSize="12"/>
+                                <TextBlock Text="DEPENDENCIES" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+                                <TextBlock Text="Required libraries are installed automatically with Pro." TextWrapping="Wrap" Foreground="{DynamicResource Muted}" FontSize="14"/>
                             </StackPanel>
 
                             <!-- what's new / changelog -->
                             <StackPanel Visibility="{Binding HasChangeLog, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
-                                <TextBlock Text="WHAT'S NEW" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
+                                <TextBlock Text="WHAT'S NEW" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
                                 <Border Background="{DynamicResource Bg}" CornerRadius="6" Padding="10" MaxHeight="200">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                        <TextBlock Text="{Binding DetailChangeLog}" TextWrapping="Wrap" Foreground="{DynamicResource Text}" FontSize="12" LineHeight="17"/>
+                                        <TextBlock Text="{Binding DetailChangeLog}" TextWrapping="Wrap" Foreground="{DynamicResource Text}" FontSize="14" LineHeight="17"/>
                                     </ScrollViewer>
                                 </Border>
                             </StackPanel>
 
                             <!-- description -->
-                            <TextBlock Text="DESCRIPTION" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
+                            <TextBlock Text="DESCRIPTION" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
                             <TextBlock Text="{Binding DetailDescription}" TextWrapping="Wrap" Foreground="{DynamicResource Text}" LineHeight="18"/>
                         </StackPanel>
                     </ScrollViewer>
@@ -524,8 +524,8 @@
         <!-- Status bar -->
         <Border Grid.Row="4" Background="{DynamicResource PanelAlt}" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0">
             <Grid Margin="16,8">
-                <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}" FontSize="12"/>
-                <TextBlock Text="Working…" Foreground="{StaticResource Accent}" FontSize="12" HorizontalAlignment="Right"
+                <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}" FontSize="14"/>
+                <TextBlock Text="Working…" Foreground="{StaticResource Accent}" FontSize="14" HorizontalAlignment="Right"
                            Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"/>
             </Grid>
         </Border>

@@ -26,6 +26,10 @@ public class MainViewModel : ObservableObject
     private LicenseInfo _licenseInfo = new();
     private IReadOnlyList<EsouiAddon> _catalog = Array.Empty<EsouiAddon>();
     private Dictionary<string, EsouiAddon> _catalogByDir = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, string> _categoryTitlesById = new();
+    /// <summary>All addon/lib folder names present anywhere (top-level + bundled/nested) — used so a
+    /// dependency satisfied by a bundled library isn't reported as missing.</summary>
+    private HashSet<string> _availableAddonNames = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly bool _ppeChannel;
 
@@ -426,14 +430,15 @@ public class MainViewModel : ObservableObject
             try
             {
                 var cats = await _client.GetCategoriesAsync();
-                var titleById = cats.GroupBy(c => c.Id).ToDictionary(g => g.Key, g => g.First().Title);
+                _categoryTitlesById = cats.GroupBy(c => c.Id).ToDictionary(g => g.Key, g => g.First().Title);
                 var counts = _catalog.GroupBy(a => a.CategoryId).ToDictionary(g => g.Key, g => g.Count());
                 Categories.Clear();
                 Categories.Add(new Category { Id = "", Title = "All Categories" });
-                foreach (var kv in counts.Where(k => titleById.ContainsKey(k.Key)).OrderBy(k => titleById[k.Key]))
-                    Categories.Add(new Category { Id = kv.Key, Title = titleById[kv.Key], Count = kv.Value });
+                foreach (var kv in counts.Where(k => _categoryTitlesById.ContainsKey(k.Key)).OrderBy(k => _categoryTitlesById[k.Key]))
+                    Categories.Add(new Category { Id = kv.Key, Title = _categoryTitlesById[kv.Key], Count = kv.Value });
                 _selectedCategory = Categories[0];
                 OnPropertyChanged(nameof(SelectedCategory));
+                ApplyEsouiCategories();   // now that titles are known, fill the Installed Category column
             }
             catch { /* categories are optional; browse still works */ }
 
@@ -457,6 +462,7 @@ public class MainViewModel : ObservableObject
                 a.EsouiId = match.Id;
                 a.LatestVersion = match.Version;
                 a.LastUpdateMs = match.LastUpdateMs;
+                a.EsouiCategory = _categoryTitlesById.TryGetValue(match.CategoryId, out var ct) ? ct : "";
                 a.ThumbUrl = match.ThumbUrl;
                 if (match.IsLibrary) a.IsLibrary = true;
                 var recorded = _state.Get(a.FolderName);
@@ -465,12 +471,15 @@ public class MainViewModel : ObservableObject
             Installed.Add(a);
         }
         RecountUpdates();
-        var installedSet = new HashSet<string>(Installed.Select(i => i.FolderName), StringComparer.OrdinalIgnoreCase);
+        // Available = top-level AND bundled/nested libs, so a dependency satisfied by a bundled library
+        // isn't flagged missing. Only flag deps that are missing AND obtainable on ESOUI (actionable).
+        _availableAddonNames = AddonScanner.AllAddonFolderNames(AddonsPath);
         foreach (var a in Installed)
         {
             a.ProUpdates = IsPro;   // updates are Pro
-            a.MissingDeps = string.Join(", ", a.Dependencies.Where(d => !installedSet.Contains(d)));   // health check
-            a.Category = _settings.InstalledCategories.TryGetValue(a.FolderName, out var cat) ? cat : "";
+            a.MissingDeps = string.Join(", ", a.Dependencies.Where(d =>
+                !_availableAddonNames.Contains(d) && _catalogByDir.ContainsKey(d)));   // actionable health check
+            a.UserCategory = _settings.InstalledCategories.TryGetValue(a.FolderName, out var cat) ? cat : "";
         }
         MissingDepsCount = Installed.Count(a => a.HasMissingDeps);
         RefreshKnownCategories();
@@ -639,7 +648,10 @@ public class MainViewModel : ObservableObject
         DetailChangeLog = "";
         DetailPageUrl = "";
         ShowDepAutoNote = false;
-        DetailCategoryInput = a.Category;
+        DetailCategoryInput = a.UserCategory;
+        DetailCategoryHint = a.EsouiCategory.Length > 0
+            ? $"Auto from ESOUI: {a.EsouiCategory}. Type to override, or leave blank to use it."
+            : "Type a category. Leave blank to clear.";
         OnPropertyChanged(nameof(ShowCategoryEditor));
         BuildDependencyList(a);
 
@@ -706,7 +718,7 @@ public class MainViewModel : ObservableObject
         // Show the addon's required libraries (from the manifest) so the user knows what's needed
         // before installing — they install automatically, but this makes them visible.
         DetailDependencies.Clear();
-        var installed = new HashSet<string>(Installed.Select(i => i.FolderName), StringComparer.OrdinalIgnoreCase);
+        var installed = _availableAddonNames;   // top-level + bundled/nested libs
         foreach (var d in p.Dependencies)
             DetailDependencies.Add(new DependencyStatus { Name = d, IsInstalled = installed.Contains(d), IsOptional = false, IsGettable = _catalogByDir.ContainsKey(d) });
         HasDependencies = DetailDependencies.Count > 0;
@@ -728,7 +740,7 @@ public class MainViewModel : ObservableObject
     private void BuildDependencyList(InstalledAddon a)
     {
         DetailDependencies.Clear();
-        var installed = new HashSet<string>(Installed.Select(i => i.FolderName), StringComparer.OrdinalIgnoreCase);
+        var installed = _availableAddonNames;   // top-level + bundled/nested libs
         foreach (var d in a.Dependencies)
             DetailDependencies.Add(new DependencyStatus { Name = d, IsInstalled = installed.Contains(d), IsOptional = false, IsGettable = _catalogByDir.ContainsKey(d) });
         foreach (var d in a.OptionalDependencies)
@@ -885,7 +897,7 @@ public class MainViewModel : ObservableObject
 
     private void RefreshKnownCategories()
     {
-        var cats = Installed.Select(a => a.Category)
+        var cats = Installed.Select(a => a.Category)   // effective (override else ESOUI)
                             .Where(c => !string.IsNullOrWhiteSpace(c))
                             .Distinct(StringComparer.OrdinalIgnoreCase)
                             .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
@@ -894,14 +906,30 @@ public class MainViewModel : ObservableObject
         foreach (var c in cats) KnownCategories.Add(c);
     }
 
+    /// <summary>Fills each installed addon's ESOUI category (the auto-default for the Category column)
+    /// once category titles are known. Manual overrides still win.</summary>
+    private void ApplyEsouiCategories()
+    {
+        foreach (var a in Installed)
+            a.EsouiCategory = a.Managed && _catalogByDir.TryGetValue(a.FolderName, out var c)
+                && _categoryTitlesById.TryGetValue(c.CategoryId, out var title) ? title : a.EsouiCategory;
+        RefreshKnownCategories();
+        InstalledView.Refresh();
+    }
+
     /// <summary>True when the detail pane should show the category editor (Pro, installed addon selected).</summary>
     public bool ShowCategoryEditor => IsPro && DetailIsInstalled && SelectedInstalled is not null;
 
     private string _detailCategoryInput = "";
-    /// <summary>Seeds the category combo in the detail pane when an installed addon is selected.</summary>
+    /// <summary>Seeds the category combo in the detail pane (the user's override, blank if none).</summary>
     public string DetailCategoryInput { get => _detailCategoryInput; set => SetProperty(ref _detailCategoryInput, value); }
 
-    /// <summary>Assigns (or clears, when blank) a category for an installed addon and persists it.</summary>
+    private string _detailCategoryHint = "";
+    /// <summary>Helper line under the category combo (shows the auto ESOUI category, if any).</summary>
+    public string DetailCategoryHint { get => _detailCategoryHint; set => SetProperty(ref _detailCategoryHint, value); }
+
+    /// <summary>Sets (or clears, when blank) the user's category override for an installed addon and persists it.
+    /// Clearing reverts the addon to its ESOUI category.</summary>
     public void SetCategory(InstalledAddon a, string category)
     {
         if (!IsPro) return;
@@ -909,11 +937,13 @@ public class MainViewModel : ObservableObject
         if (category.Length == 0) _settings.InstalledCategories.Remove(a.FolderName);
         else _settings.InstalledCategories[a.FolderName] = category;
         _settingsStore.Save(_settings);
-        a.Category = category;
+        a.UserCategory = category;
         DetailCategoryInput = category;
         RefreshKnownCategories();
         InstalledView.Refresh();
-        Status = category.Length == 0 ? $"Cleared category for {a.Title}." : $"Set {a.Title} to “{category}”.";
+        Status = category.Length == 0
+            ? $"Cleared category override for {a.Title} (now: {(a.Category.Length > 0 ? a.Category : "Uncategorized")})."
+            : $"Set {a.Title} to “{category}”.";
     }
 
     // ==================== Pro: auto-update on launch ====================
@@ -972,7 +1002,7 @@ public class MainViewModel : ObservableObject
             Title = a.Title,
             EsouiId = a.EsouiId,
             Version = a.DisplayVersion,
-            Category = a.Category,
+            Category = a.UserCategory,   // only the user's override travels (ESOUI category re-derives itself)
         }).ToList(),
     };
 
@@ -985,7 +1015,7 @@ public class MainViewModel : ObservableObject
             var stamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
             var manifest = BuildManifest($"Backup {DateTime.Now:yyyy-MM-dd HH:mm}");
             var dest = Path.Combine(SnapshotService.BackupsDir, $"backup-{stamp}.zip");
-            SnapshotService.Write(manifest, SnapshotService.SavedVarsDirFor(AddonsPath), dest);
+            SnapshotService.Write(manifest, SnapshotService.SavedVarsDirFor(AddonsPath), dest, SnapshotService.AddOnSettingsPathFor(AddonsPath));
             RefreshSnapshots();
             Status = $"Backed up {manifest.Addons.Count} addons + {manifest.SavedVarCount} config file(s).";
         }
@@ -1003,7 +1033,7 @@ public class MainViewModel : ObservableObject
         {
             var manifest = BuildManifest(name);
             var dest = Path.Combine(SnapshotService.ProfilesDir, SnapshotService.SafeFileName(name) + ".zip");
-            SnapshotService.Write(manifest, SnapshotService.SavedVarsDirFor(AddonsPath), dest);
+            SnapshotService.Write(manifest, SnapshotService.SavedVarsDirFor(AddonsPath), dest, SnapshotService.AddOnSettingsPathFor(AddonsPath));
             RefreshSnapshots();
             Status = $"Saved profile “{name}” ({manifest.Addons.Count} addons).";
         }
@@ -1023,7 +1053,8 @@ public class MainViewModel : ObservableObject
             // 1) SavedVariables (the configs)
             int restored = 0;
             if (restoreConfigs)
-                restored = SnapshotService.RestoreSavedVars(entry.FilePath, SnapshotService.SavedVarsDirFor(AddonsPath));
+                restored = SnapshotService.RestoreSavedVars(entry.FilePath,
+                    SnapshotService.SavedVarsDirFor(AddonsPath), SnapshotService.AddOnSettingsPathFor(AddonsPath));
 
             // 2) reinstall addons present in the snapshot but missing locally (ESOUI-managed only)
             var installedFolders = new HashSet<string>(Installed.Select(i => i.FolderName), StringComparer.OrdinalIgnoreCase);
@@ -1096,7 +1127,7 @@ public class MainViewModel : ObservableObject
         {
             var manifest = BuildManifest($"Sync from {Environment.MachineName}");
             var dest = Path.Combine(SyncFolder, SnapshotService.SyncFileName);
-            SnapshotService.Write(manifest, SnapshotService.SavedVarsDirFor(AddonsPath), dest);
+            SnapshotService.Write(manifest, SnapshotService.SavedVarsDirFor(AddonsPath), dest, SnapshotService.AddOnSettingsPathFor(AddonsPath));
             Status = $"Pushed {manifest.Addons.Count} addons + {manifest.SavedVarCount} config(s) to sync.";
         }
         catch (Exception ex) { Status = "Sync push failed: " + ex.Message; }

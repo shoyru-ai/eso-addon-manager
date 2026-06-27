@@ -25,17 +25,26 @@ public static class SnapshotService
     public static string SavedVarsDirFor(string addonsPath) =>
         Path.GetFullPath(Path.Combine(addonsPath, "..", "SavedVariables"));
 
+    /// <summary>ESO's enabled/disabled addon list lives next to AddOns (…\live\AddOnSettings.txt).
+    /// Capturing it lets a profile restore *which addons are active*, not just their settings.</summary>
+    public static string AddOnSettingsPathFor(string addonsPath) =>
+        Path.GetFullPath(Path.Combine(addonsPath, "..", "AddOnSettings.txt"));
+
+    private const string AddOnSettingsEntry = "AddOnSettings.txt";
+
     /// <summary>File name for the single shared sync slot inside the user's sync folder.</summary>
     public const string SyncFileName = "shoyru-addon-suite-sync.snapshot.zip";
 
-    /// <summary>Builds a snapshot zip in memory: manifest.json + every SavedVariables\*.lua.
-    /// Also stamps SavedVarCount onto the manifest so list rows can show it without opening the zip.</summary>
-    public static byte[] BuildZip(SnapshotManifest manifest, string savedVarsDir)
+    /// <summary>Builds a snapshot zip in memory: manifest.json + every SavedVariables\*.lua + (if present)
+    /// AddOnSettings.txt. Stamps SavedVarCount/HasAddOnSettings onto the manifest so list rows can show
+    /// them without opening the zip.</summary>
+    public static byte[] BuildZip(SnapshotManifest manifest, string savedVarsDir, string? addOnSettingsPath = null)
     {
         var luaFiles = Directory.Exists(savedVarsDir)
             ? Directory.GetFiles(savedVarsDir, "*.lua")
             : Array.Empty<string>();
         manifest.SavedVarCount = luaFiles.Length;
+        manifest.HasAddOnSettings = addOnSettingsPath is not null && File.Exists(addOnSettingsPath);
 
         using var ms = new MemoryStream();
         using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
@@ -46,15 +55,18 @@ public static class SnapshotService
 
             foreach (var f in luaFiles)
                 zip.CreateEntryFromFile(f, "SavedVariables/" + Path.GetFileName(f));
+
+            if (manifest.HasAddOnSettings)
+                zip.CreateEntryFromFile(addOnSettingsPath!, AddOnSettingsEntry);
         }
         return ms.ToArray();
     }
 
     /// <summary>Builds a snapshot and writes it to <paramref name="destZipPath"/> (creating dirs).</summary>
-    public static void Write(SnapshotManifest manifest, string savedVarsDir, string destZipPath)
+    public static void Write(SnapshotManifest manifest, string savedVarsDir, string destZipPath, string? addOnSettingsPath = null)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(destZipPath)!);
-        File.WriteAllBytes(destZipPath, BuildZip(manifest, savedVarsDir));
+        File.WriteAllBytes(destZipPath, BuildZip(manifest, savedVarsDir, addOnSettingsPath));
     }
 
     /// <summary>Reads just the manifest header from a snapshot zip (null if missing/unreadable).</summary>
@@ -87,8 +99,9 @@ public static class SnapshotService
     }
 
     /// <summary>Restores the SavedVariables\*.lua files from a snapshot into <paramref name="savedVarsDir"/>
-    /// (overwriting). Returns how many files were written. Guards against zip-slip.</summary>
-    public static int RestoreSavedVars(string zipPath, string savedVarsDir)
+    /// (overwriting), plus AddOnSettings.txt to <paramref name="addOnSettingsPath"/> when both the snapshot
+    /// contains it and a path is given. Returns how many SavedVariables files were written. Guards zip-slip.</summary>
+    public static int RestoreSavedVars(string zipPath, string savedVarsDir, string? addOnSettingsPath = null)
     {
         Directory.CreateDirectory(savedVarsDir);
         var root = Path.GetFullPath(savedVarsDir);
@@ -97,11 +110,20 @@ public static class SnapshotService
         foreach (var e in archive.Entries)
         {
             if (string.IsNullOrEmpty(e.Name)) continue;                                  // directory entry
-            if (!e.FullName.StartsWith("SavedVariables/", StringComparison.OrdinalIgnoreCase)) continue;
-            var dest = Path.GetFullPath(Path.Combine(savedVarsDir, e.Name));
-            if (!dest.StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue;     // zip-slip guard
-            e.ExtractToFile(dest, overwrite: true);
-            n++;
+
+            if (e.FullName.StartsWith("SavedVariables/", StringComparison.OrdinalIgnoreCase))
+            {
+                var dest = Path.GetFullPath(Path.Combine(savedVarsDir, e.Name));
+                if (!dest.StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue; // zip-slip guard
+                e.ExtractToFile(dest, overwrite: true);
+                n++;
+            }
+            else if (addOnSettingsPath is not null &&
+                     e.FullName.Equals(AddOnSettingsEntry, StringComparison.OrdinalIgnoreCase))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(addOnSettingsPath)!);
+                e.ExtractToFile(addOnSettingsPath, overwrite: true);
+            }
         }
         return n;
     }

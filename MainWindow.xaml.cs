@@ -105,14 +105,14 @@ public partial class MainWindow : Window
             badge.Children.Add(new System.Windows.Shapes.Ellipse { Fill = B("Accent", "#5B8DEF") });
             badge.Children.Add(new TextBlock
             {
-                Text = "✓", Foreground = Brushes.White, FontSize = 12, FontWeight = FontWeights.Bold,
+                Text = "✓", Foreground = Brushes.White, FontSize = 14, FontWeight = FontWeights.Bold,
                 HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
             });
             header.Children.Add(badge);
             header.Children.Add(new TextBlock
             {
                 Text = "Pro is active on this device", Foreground = B("Accent", "#5B8DEF"),
-                FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(8, 0, 0, 0),
+                FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(8, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
             });
             panel.Children.Add(header);
@@ -122,7 +122,7 @@ public partial class MainWindow : Window
             panel.Children.Add(new TextBlock
             {
                 Text = "Unlock Pro", Foreground = B("Text", "#E6E6E6"),
-                FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 6),
+                FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 6),
             });
         }
         panel.Children.Add(new TextBlock
@@ -140,8 +140,8 @@ public partial class MainWindow : Window
 
         if (!_vm.IsPro)
         {
-            panel.Children.Add(new TextBlock { Text = "License key", Foreground = B("Muted", "#9A9A9A"), FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
-            var keyBox = new TextBox { FontSize = 13, Padding = new Thickness(6, 5, 6, 5), Margin = new Thickness(0, 0, 0, 10) };
+            panel.Children.Add(new TextBlock { Text = "License key", Foreground = B("Muted", "#9A9A9A"), FontSize = 14, Margin = new Thickness(0, 0, 0, 4) });
+            var keyBox = new TextBox { FontSize = 15, Padding = new Thickness(6, 5, 6, 5), Margin = new Thickness(0, 0, 0, 10) };
             panel.Children.Add(keyBox);
 
             var row = new StackPanel { Orientation = Orientation.Horizontal };
@@ -238,7 +238,7 @@ public partial class MainWindow : Window
             var tb = new TextBlock
             {
                 Text = you ? t + "  (you)" : t,
-                TextAlignment = TextAlignment.Center, FontWeight = FontWeights.Bold, FontSize = 12,
+                TextAlignment = TextAlignment.Center, FontWeight = FontWeights.Bold, FontSize = 14,
                 Foreground = you ? B("Accent", "#5B8DEF") : B("Text", "#E6E6E6"),
                 Margin = new Thickness(0, 0, 0, 7),
             };
@@ -246,7 +246,7 @@ public partial class MainWindow : Window
         }
         var featHdr = new TextBlock
         {
-            Text = "Feature", FontWeight = FontWeights.Bold, FontSize = 12, Foreground = B("Muted", "#9A9A9A"),
+            Text = "Feature", FontWeight = FontWeights.Bold, FontSize = 14, Foreground = B("Muted", "#9A9A9A"),
             Margin = new Thickness(0, 0, 0, 7), VerticalAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumn(featHdr, 0); Grid.SetRow(featHdr, 0); grid.Children.Add(featHdr);
@@ -258,14 +258,14 @@ public partial class MainWindow : Window
             var (feat, free, pro) = rows[i];
             var ft = new TextBlock
             {
-                Text = feat, Foreground = B("Text", "#E6E6E6"), FontSize = 12, TextWrapping = TextWrapping.Wrap,
+                Text = feat, Foreground = B("Text", "#E6E6E6"), FontSize = 14, TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 3, 8, 3), VerticalAlignment = VerticalAlignment.Center,
             };
             Grid.SetColumn(ft, 0); Grid.SetRow(ft, i + 1); grid.Children.Add(ft);
 
             TextBlock Mark(bool has) => new()
             {
-                Text = has ? "✓" : "—", TextAlignment = TextAlignment.Center, FontSize = 13,
+                Text = has ? "✓" : "—", TextAlignment = TextAlignment.Center, FontSize = 15,
                 FontWeight = has ? FontWeights.Bold : FontWeights.Normal,
                 Foreground = has ? B("Good", "#5BBF73") : B("Muted", "#9A9A9A"),
                 Margin = new Thickness(0, 3, 0, 3),
@@ -307,7 +307,7 @@ public partial class MainWindow : Window
         };
         Grid.SetRow(label, 0); grid.Children.Add(label);
 
-        var pw = new PasswordBox { FontSize = 14, Padding = new Thickness(6, 5, 6, 5) };
+        var pw = new PasswordBox { FontSize = 16, Padding = new Thickness(6, 5, 6, 5) };
         Grid.SetRow(pw, 1); grid.Children.Add(pw);
 
         var error = new TextBlock
@@ -374,7 +374,7 @@ public partial class MainWindow : Window
         {
             Text = $"Release Notes — v{_vm.AppUpdateVersion}",
             Foreground = B("Text", "#E6E6E6"),
-            FontSize = 18, FontWeight = FontWeights.Bold,
+            FontSize = 20, FontWeight = FontWeights.Bold,
             Margin = new Thickness(0, 0, 0, 12),
         };
         Grid.SetRow(header, 0);
@@ -396,7 +396,7 @@ public partial class MainWindow : Window
                     Text = notes,
                     Foreground = B("Text", "#E6E6E6"),
                     TextWrapping = TextWrapping.Wrap,
-                    FontSize = 13, LineHeight = 19,
+                    FontSize = 15, LineHeight = 19,
                 },
             },
         };

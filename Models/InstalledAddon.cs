@@ -21,9 +21,17 @@ public class InstalledAddon : ObservableObject
     private string _thumbUrl = "";
     public string ThumbUrl { get => _thumbUrl; set => SetProperty(ref _thumbUrl, value); }
 
-    /// <summary>Pro: user-assigned category, shown as a sortable column in the Installed tab.</summary>
-    private string _category = "";
-    public string Category { get => _category; set => SetProperty(ref _category, value); }
+    /// <summary>Pro: the user's manual category override (empty = fall back to the ESOUI category).</summary>
+    private string _userCategory = "";
+    public string UserCategory { get => _userCategory; set { if (SetProperty(ref _userCategory, value)) OnPropertyChanged(nameof(Category)); } }
+
+    /// <summary>The addon's category on ESOUI (auto-filled from the catalog; empty for unmanaged addons).</summary>
+    private string _esouiCategory = "";
+    public string EsouiCategory { get => _esouiCategory; set { if (SetProperty(ref _esouiCategory, value)) OnPropertyChanged(nameof(Category)); } }
+
+    /// <summary>Effective category shown in the sortable Installed column: the user's override if set,
+    /// otherwise the ESOUI category.</summary>
+    public string Category => !string.IsNullOrWhiteSpace(_userCategory) ? _userCategory : _esouiCategory;
 
     /// <summary>ESOUI file id once matched to the catalog (empty = unmanaged/private addon).</summary>
     private string _esouiId = "";

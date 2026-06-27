@@ -39,6 +39,29 @@ public static class AddonScanner
         return result.OrderBy(a => a.Title, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    /// <summary>All addon/library folder names present anywhere under AddOns — top-level AND nested
+    /// (libraries bundled inside another addon, e.g. SomeAddon\Libs\LibFoo). Used so a "## DependsOn"
+    /// satisfied by a bundled library isn't falsely reported as missing.</summary>
+    public static HashSet<string> AllAddonFolderNames(string addonsPath)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!Directory.Exists(addonsPath)) return names;
+
+        void Recurse(string dir, int depth)
+        {
+            string[] subs;
+            try { subs = Directory.GetDirectories(dir); } catch { return; }
+            foreach (var sub in subs)
+            {
+                var folder = Path.GetFileName(sub);
+                if (FindManifest(sub, folder) is not null) names.Add(folder);
+                if (depth < 3) Recurse(sub, depth + 1);   // bundled libs are shallow; cap to stay fast
+            }
+        }
+        Recurse(addonsPath, 0);
+        return names;
+    }
+
     // ESO addon manifests can use either extension.
     private static readonly string[] ManifestExtensions = { ".txt", ".addon" };
 

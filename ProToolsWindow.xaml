@@ -35,7 +35,7 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource Text}" TextTrimming="CharacterEllipsis"/>
-                    <TextBlock Text="{Binding Subtitle}" FontSize="11" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Text="{Binding Subtitle}" FontSize="13" Foreground="{DynamicResource Muted}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Content="Apply" Style="{StaticResource Update}" Padding="10,3" Margin="0,0,6,0" Click="ApplySnapshot_Click"/>
@@ -53,7 +53,7 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="Pro Tools" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource Text}"/>
+            <TextBlock Text="Pro Tools" FontSize="22" FontWeight="Bold" Foreground="{DynamicResource Text}"/>
             <TextBlock Text="Profiles, backups and multi-PC sync save your installed-addon list and your in-game settings (SavedVariables) together. Close ESO before restoring, so it doesn't overwrite the restored configs on exit."
                        Style="{StaticResource SectionHint}" Margin="0,2,0,0"/>
             <!-- shared apply options -->
@@ -61,9 +61,9 @@
                 <CheckBox x:Name="RestoreConfigsCheck" Content="Restore in-game settings" IsChecked="True"
                           Foreground="{DynamicResource Text}" Margin="0,0,18,0"
                           ToolTip="When applying a profile/backup/sync, also restore the saved SavedVariables configs"/>
-                <CheckBox x:Name="RemoveExtrasCheck" Content="Remove addons not in the snapshot" IsChecked="False"
+                <CheckBox x:Name="RemoveExtrasCheck" Content="Exact match (also remove addons not in it)" IsChecked="False"
                           Foreground="{DynamicResource Text}"
-                          ToolTip="Make this PC match the snapshot exactly by removing managed addons that aren't in it"/>
+                          ToolTip="Off: only add the snapshot's missing addons + restore settings (your other addons stay).&#10;On: make this PC's addon set EXACTLY match the snapshot by removing the rest. Your custom/private (non-ESOUI) addons are never removed."/>
             </StackPanel>
         </StackPanel>
 
@@ -118,7 +118,7 @@
                             <Button DockPanel.Dock="Right" Content="Choose folder…" Style="{StaticResource Ghost}" Margin="8,0,0,0" Click="ChooseSyncFolder_Click"/>
                             <Border Background="{DynamicResource PanelAlt}" CornerRadius="4" Padding="8,5">
                                 <TextBlock Text="{Binding SyncFolder, TargetNullValue='(no folder set)'}" Foreground="{DynamicResource Muted}"
-                                           FontSize="12" TextTrimming="CharacterEllipsis" ToolTip="{Binding SyncFolder}"/>
+                                           FontSize="14" TextTrimming="CharacterEllipsis" ToolTip="{Binding SyncFolder}"/>
                             </Border>
                         </DockPanel>
                         <StackPanel Orientation="Horizontal">
@@ -134,7 +134,7 @@
 
         <DockPanel Grid.Row="2" Margin="0,12,0,0">
             <Button DockPanel.Dock="Right" Content="Close" Style="{StaticResource Ghost}" IsCancel="True" Click="Close_Click"/>
-            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}" FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}" FontSize="14" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         </DockPanel>
     </Grid>
 </Window>

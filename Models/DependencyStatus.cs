@@ -9,8 +9,8 @@ public class DependencyStatus
     /// <summary>True if this dependency exists on ESOUI and can be installed via "Get".</summary>
     public bool IsGettable { get; init; }
 
-    // ✓ installed · ✗ required-missing · – optional-missing
-    public string Glyph => IsInstalled ? "✓" : (IsOptional ? "–" : "✗");
+    // ✓ installed · ✗ actionable-missing (required + on ESOUI) · – everything else
+    public string Glyph => IsInstalled ? "✓" : (IsMissingRequired ? "✗" : "–");
     public string Label => IsOptional ? $"{Name}  (optional)" : Name;
 
     /// <summary>Only offer "Get" when it's missing AND available on ESOUI.</summary>
@@ -18,10 +18,15 @@ public class DependencyStatus
 
     public string StateText =>
         IsInstalled ? "installed"
-        : !IsGettable ? (IsOptional ? "optional · not on ESOUI" : "missing · not on ESOUI")
-        : (IsOptional ? "optional" : "missing");
+        : IsMissingRequired ? "missing"
+        : IsOptional ? (IsGettable ? "optional" : "optional · not on ESOUI")
+        : "not on ESOUI · likely bundled";
 
-    // glyph colour states
-    public bool IsMissingRequired => !IsInstalled && !IsOptional;
-    public bool IsMissingOptional => !IsInstalled && IsOptional;
+    // glyph colour states:
+    //  - red (IsMissingRequired): a required dependency that's missing AND obtainable on ESOUI — the only
+    //    actionable problem (shows a Get button).
+    //  - muted (IsMissingSoft): optional deps, or required deps not on ESOUI (almost always bundled inside
+    //    the addon) — informational, not an error.
+    public bool IsMissingRequired => !IsInstalled && !IsOptional && IsGettable;
+    public bool IsMissingSoft => !IsInstalled && !IsMissingRequired;
 }

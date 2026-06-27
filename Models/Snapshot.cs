@@ -23,6 +23,8 @@ public class SnapshotManifest
     public string Machine { get; set; } = "";
     public string AppVersion { get; set; } = "";
     public int SavedVarCount { get; set; }
+    /// <summary>True when AddOnSettings.txt (the in-game enabled/disabled list) was captured too.</summary>
+    public bool HasAddOnSettings { get; set; }
     public List<SnapshotAddon> Addons { get; set; } = new();
 }
 
@@ -50,6 +52,7 @@ public class SnapshotEntry
             if (Created.Length > 0) parts.Add(Created);
             parts.Add($"{Manifest.Addons.Count} addon(s)");
             if (Manifest.SavedVarCount > 0) parts.Add($"{Manifest.SavedVarCount} config(s)");
+            if (Manifest.HasAddOnSettings) parts.Add("on/off state");
             if (Manifest.Machine.Length > 0) parts.Add(Manifest.Machine);
             return string.Join("  ·  ", parts);
         }
