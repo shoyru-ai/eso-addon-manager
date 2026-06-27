@@ -21,11 +21,9 @@ public class InstalledAddon : ObservableObject
     private string _thumbUrl = "";
     public string ThumbUrl { get => _thumbUrl; set => SetProperty(ref _thumbUrl, value); }
 
-    /// <summary>Pro: user-assigned category for grouping the Installed list. Empty = "Uncategorized".</summary>
+    /// <summary>Pro: user-assigned category, shown as a sortable column in the Installed tab.</summary>
     private string _category = "";
     public string Category { get => _category; set => SetProperty(ref _category, value); }
-    /// <summary>Group header label used when the Installed list is grouped by category.</summary>
-    public string CategoryGroup => string.IsNullOrWhiteSpace(_category) ? "Uncategorized" : _category;
 
     /// <summary>ESOUI file id once matched to the catalog (empty = unmanaged/private addon).</summary>
     private string _esouiId = "";
@@ -33,6 +31,14 @@ public class InstalledAddon : ObservableObject
 
     private string _latestVersion = "";
     public string LatestVersion { get => _latestVersion; set { if (SetProperty(ref _latestVersion, value)) { OnPropertyChanged(nameof(UpdateAvailable)); OnPropertyChanged(nameof(ShowUpdate)); } } }
+
+    /// <summary>When this addon was last updated on ESOUI (Unix ms; 0 for unmanaged/private addons).</summary>
+    private long _lastUpdateMs;
+    public long LastUpdateMs { get => _lastUpdateMs; set { if (SetProperty(ref _lastUpdateMs, value)) OnPropertyChanged(nameof(LastUpdated)); } }
+    /// <summary>Last-updated date for display (empty when unknown).</summary>
+    public string LastUpdated => _lastUpdateMs > 0
+        ? DateTimeOffset.FromUnixTimeMilliseconds(_lastUpdateMs).LocalDateTime.ToString("yyyy-MM-dd")
+        : "";
 
     // Addon updates are a Pro feature. The VM sets ProUpdates = IsPro on each addon.
     private bool _proUpdates;

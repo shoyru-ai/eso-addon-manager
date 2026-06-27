@@ -63,7 +63,6 @@ public class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowDepsList));
         OnPropertyChanged(nameof(ShowDepsFreeNote));
         OnPropertyChanged(nameof(ShowCategoryEditor));
-        if (!IsPro) SelectedInstalledCategory = AllCategories;   // drop the category filter if Pro is lost
         InstalledView.Refresh();
     }
 
@@ -199,7 +198,6 @@ public class MainViewModel : ObservableObject
         OpenPageCommand = new RelayCommand(_ => OpenUrl(DetailPageUrl), _ => !string.IsNullOrEmpty(DetailPageUrl));
         SetFilterCommand = new RelayCommand(f => Filter = Enum.Parse<AddonFilter>((string)f!));
         InstallDepCommand = new AsyncRelayCommand(a => InstallByDirAsync((string)a!), a => a is string s && _catalogByDir.ContainsKey(s));
-        SetCategoryCommand = new RelayCommand(_ => ApplyDetailCategory(), _ => IsPro && SelectedInstalled is not null);
     }
 
     private string _addonsPath = "";
@@ -253,7 +251,6 @@ public class MainViewModel : ObservableObject
     public ICommand SetFilterCommand { get; }
     public ICommand InstallDepCommand { get; }
     public ICommand SetSortCommand { get; }
-    public ICommand SetCategoryCommand { get; }
 
     // ---- browse categories + sort ----
     public ObservableCollection<Category> Categories { get; } = new();
@@ -296,14 +293,6 @@ public class MainViewModel : ObservableObject
     private bool InstalledPasses(InstalledAddon a)
     {
         if (!PassesFilter(a.IsLibrary)) return false;
-        // Pro category filter (no-op for free users or when "All Categories" is selected)
-        if (IsPro && _selectedInstalledCategory != AllCategories)
-        {
-            var match = _selectedInstalledCategory == Uncategorized
-                ? string.IsNullOrWhiteSpace(a.Category)
-                : string.Equals(a.Category, _selectedInstalledCategory, StringComparison.OrdinalIgnoreCase);
-            if (!match) return false;
-        }
         var q = InstalledSearchText.Trim();
         if (q.Length == 0) return true;
         return a.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
@@ -467,6 +456,7 @@ public class MainViewModel : ObservableObject
             {
                 a.EsouiId = match.Id;
                 a.LatestVersion = match.Version;
+                a.LastUpdateMs = match.LastUpdateMs;
                 a.ThumbUrl = match.ThumbUrl;
                 if (match.IsLibrary) a.IsLibrary = true;
                 var recorded = _state.Get(a.FolderName);
@@ -888,17 +878,10 @@ public class MainViewModel : ObservableObject
             : "That folder doesn't exist — pick your '…\\Elder Scrolls Online\\live\\AddOns' folder.";
     }
 
-    // ==================== Pro: categories (assign + filter the Installed list) ====================
-
-    public const string AllCategories = "All Categories";
-    public const string Uncategorized = "Uncategorized";
+    // ==================== Pro: categories (assign + sortable Category column) ====================
 
     /// <summary>Distinct user-defined categories across installed addons (for the assign drop-down).</summary>
     public ObservableCollection<string> KnownCategories { get; } = new();
-
-    /// <summary>Filter drop-down options for the Installed tab: "All Categories", each used category, and
-    /// "Uncategorized" when any addon has no category.</summary>
-    public ObservableCollection<string> InstalledCategoryOptions { get; } = new();
 
     private void RefreshKnownCategories()
     {
@@ -909,52 +892,28 @@ public class MainViewModel : ObservableObject
                             .ToList();
         KnownCategories.Clear();
         foreach (var c in cats) KnownCategories.Add(c);
-
-        var prev = SelectedInstalledCategory;
-        InstalledCategoryOptions.Clear();
-        InstalledCategoryOptions.Add(AllCategories);
-        foreach (var c in cats) InstalledCategoryOptions.Add(c);
-        if (Installed.Any(a => string.IsNullOrWhiteSpace(a.Category))) InstalledCategoryOptions.Add(Uncategorized);
-
-        // keep the current filter if it still exists, else fall back to "All"
-        _selectedInstalledCategory = InstalledCategoryOptions.Contains(prev) ? prev : AllCategories;
-        OnPropertyChanged(nameof(SelectedInstalledCategory));
-    }
-
-    private string _selectedInstalledCategory = AllCategories;
-    /// <summary>Pro: the category currently filtering the Installed list ("All Categories" = no filter).</summary>
-    public string SelectedInstalledCategory
-    {
-        get => _selectedInstalledCategory;
-        set { if (SetProperty(ref _selectedInstalledCategory, value)) InstalledView.Refresh(); }
     }
 
     /// <summary>True when the detail pane should show the category editor (Pro, installed addon selected).</summary>
     public bool ShowCategoryEditor => IsPro && DetailIsInstalled && SelectedInstalled is not null;
 
     private string _detailCategoryInput = "";
-    /// <summary>Bound to the category combo in the detail pane; applied via SetCategoryCommand.</summary>
+    /// <summary>Seeds the category combo in the detail pane when an installed addon is selected.</summary>
     public string DetailCategoryInput { get => _detailCategoryInput; set => SetProperty(ref _detailCategoryInput, value); }
-
-    private void ApplyDetailCategory()
-    {
-        if (!IsPro || SelectedInstalled is null) return;
-        SetCategory(SelectedInstalled, DetailCategoryInput);
-        Status = string.IsNullOrWhiteSpace(DetailCategoryInput)
-            ? $"Cleared category for {SelectedInstalled.Title}."
-            : $"Set {SelectedInstalled.Title} to “{DetailCategoryInput.Trim()}”.";
-    }
 
     /// <summary>Assigns (or clears, when blank) a category for an installed addon and persists it.</summary>
     public void SetCategory(InstalledAddon a, string category)
     {
+        if (!IsPro) return;
         category = (category ?? "").Trim();
         if (category.Length == 0) _settings.InstalledCategories.Remove(a.FolderName);
         else _settings.InstalledCategories[a.FolderName] = category;
         _settingsStore.Save(_settings);
         a.Category = category;
+        DetailCategoryInput = category;
         RefreshKnownCategories();
-        InstalledView.Refresh();   // re-bucket if grouped
+        InstalledView.Refresh();
+        Status = category.Length == 0 ? $"Cleared category for {a.Title}." : $"Set {a.Title} to “{category}”.";
     }
 
     // ==================== Pro: auto-update on launch ====================

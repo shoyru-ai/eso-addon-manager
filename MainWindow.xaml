@@ -163,13 +163,6 @@
                                 <Button Content="🔒 Update All (Pro)" Style="{StaticResource Ghost}" Click="ManageLicense_Click" Margin="14,0,0,0"
                                         ToolTip="Updating addons is a Pro feature"
                                         Visibility="{Binding ShowProUpdateNudge, Converter={StaticResource BoolToVis}}"/>
-                                <TextBlock Text="Category:" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="18,0,6,0"
-                                           Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
-                                <ComboBox MinWidth="150" VerticalAlignment="Center"
-                                          ItemsSource="{Binding InstalledCategoryOptions}"
-                                          SelectedItem="{Binding SelectedInstalledCategory}"
-                                          ToolTip="Filter your installed addons by category (Pro)"
-                                          Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
                             </StackPanel>
                             <TextBlock Text="{Binding MissingDepsSummary}" Foreground="{StaticResource Danger}" FontSize="12" Margin="0,6,0,0"
                                        TextWrapping="Wrap" Visibility="{Binding AnyMissingDeps, Converter={StaticResource BoolToVis}}"/>
@@ -198,6 +191,7 @@
                                 </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="Installed" Binding="{Binding DisplayVersion}" Width="*"/>
                                 <DataGridTextColumn Header="Latest" Binding="{Binding LatestVersion}" Width="*"/>
+                                <DataGridTextColumn Header="Updated" Binding="{Binding LastUpdated}" SortMemberPath="LastUpdateMs" Width="*"/>
                                 <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="*"
                                                     Visibility="{Binding Data.IsPro, Source={StaticResource VmProxy}, Converter={StaticResource BoolToVis}}"/>
                                 <DataGridTemplateColumn Header="" Width="Auto" MinWidth="170" CanUserSort="False">
@@ -283,6 +277,7 @@
                                 <DataGridTextColumn Header="Addon" Binding="{Binding Title}" Width="2*"/>
                                 <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="*"/>
                                 <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="*"/>
+                                <DataGridTextColumn Header="Updated" Binding="{Binding LastUpdated}" SortMemberPath="LastUpdateMs" Width="*"/>
                                 <DataGridTextColumn Header="Downloads" Binding="{Binding DownloadsDisplay}" SortMemberPath="Downloads" Width="*"/>
                                 <DataGridTemplateColumn Header="" Width="Auto" MinWidth="100" CanUserSort="False">
                                     <DataGridTemplateColumn.CellTemplate>
@@ -450,10 +445,10 @@
                                 <TextBlock Text="CATEGORY" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
                                 <DockPanel>
                                     <Button DockPanel.Dock="Right" Content="Set" Style="{StaticResource Update}" Padding="12,4" Margin="6,0,0,0"
-                                            Command="{Binding SetCategoryCommand}"/>
-                                    <ComboBox IsEditable="True" ItemsSource="{Binding KnownCategories}"
-                                              Text="{Binding DetailCategoryInput, UpdateSourceTrigger=PropertyChanged}"
-                                              ToolTip="Type a new category or pick an existing one"/>
+                                            Click="SetCategory_Click"/>
+                                    <ComboBox x:Name="CategoryCombo" IsEditable="True" ItemsSource="{Binding KnownCategories}"
+                                              Text="{Binding DetailCategoryInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              ToolTip="Type a new category or pick an existing one, then click Set"/>
                                 </DockPanel>
                                 <TextBlock Text="Group your Installed list into custom buckets. Leave blank and Set to clear."
                                            Foreground="{DynamicResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>

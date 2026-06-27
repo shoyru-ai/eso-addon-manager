@@ -70,6 +70,13 @@ public partial class MainWindow : Window
     private void ProTools_Click(object sender, RoutedEventArgs e)
         => new ProToolsWindow(_vm) { Owner = this }.ShowDialog();
 
+    // Read the combo's live text directly — an editable ComboBox's Text binding doesn't reliably
+    // flush to the VM before the button's click fires.
+    private void SetCategory_Click(object sender, RoutedEventArgs e)
+    {
+        if (_vm.SelectedInstalled is { } a) _vm.SetCategory(a, CategoryCombo.Text ?? "");
+    }
+
     private void ShowLicenseDialog()
     {
         Brush B(string key, string fallback) =>
@@ -90,12 +97,34 @@ public partial class MainWindow : Window
 
         var panel = new StackPanel { Margin = new Thickness(18) };
 
-        panel.Children.Add(new TextBlock
+        if (_vm.IsPro)
         {
-            Text = _vm.IsPro ? "✓ Pro is active on this device" : "Unlock Pro",
-            Foreground = _vm.IsPro ? B("Good", "#5BBF73") : B("Text", "#E6E6E6"),
-            FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 6),
-        });
+            // Blue verified-style badge (matches the header), not a generic green check.
+            var header = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+            var badge = new Grid { Width = 22, Height = 22, VerticalAlignment = VerticalAlignment.Center };
+            badge.Children.Add(new System.Windows.Shapes.Ellipse { Fill = B("Accent", "#5B8DEF") });
+            badge.Children.Add(new TextBlock
+            {
+                Text = "✓", Foreground = Brushes.White, FontSize = 12, FontWeight = FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            });
+            header.Children.Add(badge);
+            header.Children.Add(new TextBlock
+            {
+                Text = "Pro is active on this device", Foreground = B("Accent", "#5B8DEF"),
+                FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(8, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            panel.Children.Add(header);
+        }
+        else
+        {
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Unlock Pro", Foreground = B("Text", "#E6E6E6"),
+                FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 6),
+            });
+        }
         panel.Children.Add(new TextBlock
         {
             Text = _vm.IsPro
