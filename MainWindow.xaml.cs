@@ -136,12 +136,13 @@ public partial class MainWindow : Window
             var remove = new Button { Content = "Remove from this device", Margin = new Thickness(0, 0, 8, 0) };
             if (TryFindResource("Ghost") is Style gs) remove.Style = gs;
             remove.Click += async (_, _) => { await _vm.RemoveLicenseAsync(); win.Close(); };
-            var info = new TextBlock
-            {
-                Text = "ⓘ", FontSize = 15, Foreground = B("Muted", "#9A9A9A"),
-                VerticalAlignment = VerticalAlignment.Center, Cursor = System.Windows.Input.Cursors.Help,
-                ToolTip = "Removes Pro from THIS PC and frees its activation seat — so you can use your license key on another computer. Re-enter your key here anytime to reactivate.",
-            };
+            var info = new Button { Content = "ⓘ  What's this?", VerticalAlignment = VerticalAlignment.Center };
+            if (TryFindResource("Ghost") is Style gi) info.Style = gi;
+            info.Click += (_, _) => MessageBox.Show(win,
+                "“Remove from this device” deactivates Pro on THIS computer and frees its activation seat.\n\n" +
+                "Use it when you want to move your license to another PC — each key works on a limited number of devices. " +
+                "Your purchase isn't lost: just re-enter your license key here anytime to reactivate Pro on this or another machine.",
+                "Remove from this device", MessageBoxButton.OK, MessageBoxImage.Information);
             removeRow.Children.Add(remove);
             removeRow.Children.Add(info);
             panel.Children.Add(removeRow);
