@@ -21,6 +21,12 @@ public class InstalledAddon : ObservableObject
     private string _thumbUrl = "";
     public string ThumbUrl { get => _thumbUrl; set => SetProperty(ref _thumbUrl, value); }
 
+    /// <summary>Pro: user-assigned category for grouping the Installed list. Empty = "Uncategorized".</summary>
+    private string _category = "";
+    public string Category { get => _category; set => SetProperty(ref _category, value); }
+    /// <summary>Group header label used when the Installed list is grouped by category.</summary>
+    public string CategoryGroup => string.IsNullOrWhiteSpace(_category) ? "Uncategorized" : _category;
+
     /// <summary>ESOUI file id once matched to the catalog (empty = unmanaged/private addon).</summary>
     private string _esouiId = "";
     public string EsouiId { get => _esouiId; set => SetProperty(ref _esouiId, value); }

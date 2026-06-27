@@ -24,6 +24,7 @@ public partial class MainWindow : Window
             await _vm.LoadAsync();
             Diag.Log("LoadAsync done. checking license + app update…");
             await _vm.CheckLicenseAsync();
+            await _vm.AutoUpdateOnLaunchAsync();   // Pro: silently update addons if the user opted in
             await _vm.CheckForAppUpdateAsync();
             Diag.Log($"update check done. available={_vm.AppUpdateAvailable} latest={_vm.AppUpdateVersion} exeUrl={_vm.AppUpdateExeUrl}");
             // Test/headless hook: auto-apply an available update when ESOADDONS_AUTOUPDATE=1.
@@ -65,6 +66,9 @@ public partial class MainWindow : Window
     private void ManageLicense_Click(object sender, RoutedEventArgs e) => ShowLicenseDialog();
 
     private void ToggleTheme_Click(object sender, RoutedEventArgs e) => _vm.ToggleTheme();
+
+    private void ProTools_Click(object sender, RoutedEventArgs e)
+        => new ProToolsWindow(_vm) { Owner = this }.ShowDialog();
 
     private void ShowLicenseDialog()
     {
@@ -171,9 +175,12 @@ public partial class MainWindow : Window
             ("See & install dependencies",      true,  true),
             ("Update addons (incl. Update All)",false, true),
             ("Auto-install dependencies",       false, true),
-            ("Dark / light theme",              false, true),
             ("Auto-update on launch",           false, true),
-            ("Profiles, backups & PC sync",     false, true),
+            ("Dark / light theme",              false, true),
+            ("Organize with categories",        false, true),
+            ("Profiles / loadouts",             false, true),
+            ("Backups & restore",               false, true),
+            ("Multi-PC sync",                   false, true),
         };
 
         var grid = new Grid { Margin = new Thickness(0, 2, 0, 14) };

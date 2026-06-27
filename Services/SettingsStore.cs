@@ -11,6 +11,17 @@ public class AppSettings
 
     /// <summary>UI theme: "dark" (default) or "light". Switching is a Pro feature.</summary>
     public string Theme { get; set; } = "dark";
+
+    /// <summary>Pro: when true, the app updates all out-of-date addons automatically on launch.</summary>
+    public bool AutoUpdateOnLaunch { get; set; } = false;
+
+    /// <summary>Pro: folder (typically inside OneDrive/Dropbox/Google Drive) where the sync snapshot
+    /// is written/read, so profiles + configs follow you between PCs. Empty = sync not configured.</summary>
+    public string SyncFolder { get; set; } = "";
+
+    /// <summary>Pro: user-assigned category per installed addon, keyed by folder name. Lets the
+    /// Installed tab group addons into custom buckets. Persisted across sessions.</summary>
+    public Dictionary<string, string> InstalledCategories { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 public class SettingsStore
@@ -27,7 +38,13 @@ public class SettingsStore
         try
         {
             if (File.Exists(_path))
-                return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path)) ?? new AppSettings();
+            {
+                var s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(_path)) ?? new AppSettings();
+                // System.Text.Json rebuilds the dictionary with a case-sensitive comparer; restore
+                // OrdinalIgnoreCase so folder-name lookups match regardless of case.
+                s.InstalledCategories = new Dictionary<string, string>(s.InstalledCategories, StringComparer.OrdinalIgnoreCase);
+                return s;
+            }
         }
         catch { /* fall through to defaults */ }
         return new AppSettings();

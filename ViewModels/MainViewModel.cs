@@ -62,6 +62,9 @@ public class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowProUpdateNudge));
         OnPropertyChanged(nameof(ShowDepsList));
         OnPropertyChanged(nameof(ShowDepsFreeNote));
+        OnPropertyChanged(nameof(ShowCategoryEditor));
+        if (!IsPro) SelectedInstalledCategory = AllCategories;   // drop the category filter if Pro is lost
+        InstalledView.Refresh();
     }
 
     // ---- theme (Pro: switch dark/light) ----
@@ -196,6 +199,7 @@ public class MainViewModel : ObservableObject
         OpenPageCommand = new RelayCommand(_ => OpenUrl(DetailPageUrl), _ => !string.IsNullOrEmpty(DetailPageUrl));
         SetFilterCommand = new RelayCommand(f => Filter = Enum.Parse<AddonFilter>((string)f!));
         InstallDepCommand = new AsyncRelayCommand(a => InstallByDirAsync((string)a!), a => a is string s && _catalogByDir.ContainsKey(s));
+        SetCategoryCommand = new RelayCommand(_ => ApplyDetailCategory(), _ => IsPro && SelectedInstalled is not null);
     }
 
     private string _addonsPath = "";
@@ -249,6 +253,7 @@ public class MainViewModel : ObservableObject
     public ICommand SetFilterCommand { get; }
     public ICommand InstallDepCommand { get; }
     public ICommand SetSortCommand { get; }
+    public ICommand SetCategoryCommand { get; }
 
     // ---- browse categories + sort ----
     public ObservableCollection<Category> Categories { get; } = new();
@@ -291,6 +296,14 @@ public class MainViewModel : ObservableObject
     private bool InstalledPasses(InstalledAddon a)
     {
         if (!PassesFilter(a.IsLibrary)) return false;
+        // Pro category filter (no-op for free users or when "All Categories" is selected)
+        if (IsPro && _selectedInstalledCategory != AllCategories)
+        {
+            var match = _selectedInstalledCategory == Uncategorized
+                ? string.IsNullOrWhiteSpace(a.Category)
+                : string.Equals(a.Category, _selectedInstalledCategory, StringComparison.OrdinalIgnoreCase);
+            if (!match) return false;
+        }
         var q = InstalledSearchText.Trim();
         if (q.Length == 0) return true;
         return a.Title.Contains(q, StringComparison.OrdinalIgnoreCase)
@@ -325,7 +338,7 @@ public class MainViewModel : ObservableObject
     private bool _hasDetail;
     public bool HasDetail { get => _hasDetail; set => SetProperty(ref _hasDetail, value); }
     private bool _detailIsInstalled;
-    public bool DetailIsInstalled { get => _detailIsInstalled; set => SetProperty(ref _detailIsInstalled, value); }
+    public bool DetailIsInstalled { get => _detailIsInstalled; set { if (SetProperty(ref _detailIsInstalled, value)) OnPropertyChanged(nameof(ShowCategoryEditor)); } }
     private string _detailTitle = "";
     public string DetailTitle { get => _detailTitle; set => SetProperty(ref _detailTitle, value); }
     private string _detailMeta = "";
@@ -467,8 +480,10 @@ public class MainViewModel : ObservableObject
         {
             a.ProUpdates = IsPro;   // updates are Pro
             a.MissingDeps = string.Join(", ", a.Dependencies.Where(d => !installedSet.Contains(d)));   // health check
+            a.Category = _settings.InstalledCategories.TryGetValue(a.FolderName, out var cat) ? cat : "";
         }
         MissingDepsCount = Installed.Count(a => a.HasMissingDeps);
+        RefreshKnownCategories();
         InstalledView.Refresh();
 
         // Preserve the detail selection across the rescan so the detail pane — and its
@@ -634,6 +649,8 @@ public class MainViewModel : ObservableObject
         DetailChangeLog = "";
         DetailPageUrl = "";
         ShowDepAutoNote = false;
+        DetailCategoryInput = a.Category;
+        OnPropertyChanged(nameof(ShowCategoryEditor));
         BuildDependencyList(a);
 
         if (a.Managed)
@@ -869,6 +886,274 @@ public class MainViewModel : ObservableObject
         Status = AddonsFolderFound
             ? $"{Installed.Count} addons found in {path}."
             : "That folder doesn't exist — pick your '…\\Elder Scrolls Online\\live\\AddOns' folder.";
+    }
+
+    // ==================== Pro: categories (assign + filter the Installed list) ====================
+
+    public const string AllCategories = "All Categories";
+    public const string Uncategorized = "Uncategorized";
+
+    /// <summary>Distinct user-defined categories across installed addons (for the assign drop-down).</summary>
+    public ObservableCollection<string> KnownCategories { get; } = new();
+
+    /// <summary>Filter drop-down options for the Installed tab: "All Categories", each used category, and
+    /// "Uncategorized" when any addon has no category.</summary>
+    public ObservableCollection<string> InstalledCategoryOptions { get; } = new();
+
+    private void RefreshKnownCategories()
+    {
+        var cats = Installed.Select(a => a.Category)
+                            .Where(c => !string.IsNullOrWhiteSpace(c))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+        KnownCategories.Clear();
+        foreach (var c in cats) KnownCategories.Add(c);
+
+        var prev = SelectedInstalledCategory;
+        InstalledCategoryOptions.Clear();
+        InstalledCategoryOptions.Add(AllCategories);
+        foreach (var c in cats) InstalledCategoryOptions.Add(c);
+        if (Installed.Any(a => string.IsNullOrWhiteSpace(a.Category))) InstalledCategoryOptions.Add(Uncategorized);
+
+        // keep the current filter if it still exists, else fall back to "All"
+        _selectedInstalledCategory = InstalledCategoryOptions.Contains(prev) ? prev : AllCategories;
+        OnPropertyChanged(nameof(SelectedInstalledCategory));
+    }
+
+    private string _selectedInstalledCategory = AllCategories;
+    /// <summary>Pro: the category currently filtering the Installed list ("All Categories" = no filter).</summary>
+    public string SelectedInstalledCategory
+    {
+        get => _selectedInstalledCategory;
+        set { if (SetProperty(ref _selectedInstalledCategory, value)) InstalledView.Refresh(); }
+    }
+
+    /// <summary>True when the detail pane should show the category editor (Pro, installed addon selected).</summary>
+    public bool ShowCategoryEditor => IsPro && DetailIsInstalled && SelectedInstalled is not null;
+
+    private string _detailCategoryInput = "";
+    /// <summary>Bound to the category combo in the detail pane; applied via SetCategoryCommand.</summary>
+    public string DetailCategoryInput { get => _detailCategoryInput; set => SetProperty(ref _detailCategoryInput, value); }
+
+    private void ApplyDetailCategory()
+    {
+        if (!IsPro || SelectedInstalled is null) return;
+        SetCategory(SelectedInstalled, DetailCategoryInput);
+        Status = string.IsNullOrWhiteSpace(DetailCategoryInput)
+            ? $"Cleared category for {SelectedInstalled.Title}."
+            : $"Set {SelectedInstalled.Title} to “{DetailCategoryInput.Trim()}”.";
+    }
+
+    /// <summary>Assigns (or clears, when blank) a category for an installed addon and persists it.</summary>
+    public void SetCategory(InstalledAddon a, string category)
+    {
+        category = (category ?? "").Trim();
+        if (category.Length == 0) _settings.InstalledCategories.Remove(a.FolderName);
+        else _settings.InstalledCategories[a.FolderName] = category;
+        _settingsStore.Save(_settings);
+        a.Category = category;
+        RefreshKnownCategories();
+        InstalledView.Refresh();   // re-bucket if grouped
+    }
+
+    // ==================== Pro: auto-update on launch ====================
+
+    /// <summary>Pro: update all out-of-date addons automatically when the app starts.</summary>
+    public bool AutoUpdateOnLaunch
+    {
+        get => _settings.AutoUpdateOnLaunch;
+        set
+        {
+            if (value == _settings.AutoUpdateOnLaunch) return;
+            _settings.AutoUpdateOnLaunch = value;
+            _settingsStore.Save(_settings);
+            OnPropertyChanged();
+        }
+    }
+
+    /// <summary>Called once after launch + license check: silently updates everything if the user opted in.</summary>
+    public async Task AutoUpdateOnLaunchAsync()
+    {
+        if (!IsPro || !AutoUpdateOnLaunch || UpdateCount == 0) return;
+        Status = "Auto-updating addons on launch…";
+        await UpdateAllAsync();
+    }
+
+    // ==================== Pro: snapshots (backups / profiles / multi-PC sync) ====================
+
+    public ObservableCollection<SnapshotEntry> Backups { get; } = new();
+    public ObservableCollection<SnapshotEntry> Profiles { get; } = new();
+
+    public string SyncFolder => _settings.SyncFolder;
+    public bool HasSyncFolder => !string.IsNullOrWhiteSpace(_settings.SyncFolder);
+
+    /// <summary>Reloads the backups + profiles lists from disk (call when opening Pro Tools).</summary>
+    public void RefreshSnapshots()
+    {
+        void Fill(ObservableCollection<SnapshotEntry> target, string dir)
+        {
+            target.Clear();
+            foreach (var e in SnapshotService.List(dir)) target.Add(e);
+        }
+        Fill(Backups, SnapshotService.BackupsDir);
+        Fill(Profiles, SnapshotService.ProfilesDir);
+    }
+
+    /// <summary>Builds a manifest of the current install set (folder, ESOUI id, version, category).</summary>
+    private SnapshotManifest BuildManifest(string name) => new()
+    {
+        Name = name,
+        CreatedUtc = DateTime.UtcNow.ToString("o"),
+        Machine = Environment.MachineName,
+        AppVersion = UpdateChecker.CurrentVersion,
+        Addons = Installed.Select(a => new SnapshotAddon
+        {
+            FolderName = a.FolderName,
+            Title = a.Title,
+            EsouiId = a.EsouiId,
+            Version = a.DisplayVersion,
+            Category = a.Category,
+        }).ToList(),
+    };
+
+    /// <summary>Creates a timestamped local backup of the install list + SavedVariables.</summary>
+    public Task BackupNowAsync()
+    {
+        if (!IsPro) return Task.CompletedTask;
+        try
+        {
+            var stamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
+            var manifest = BuildManifest($"Backup {DateTime.Now:yyyy-MM-dd HH:mm}");
+            var dest = Path.Combine(SnapshotService.BackupsDir, $"backup-{stamp}.zip");
+            SnapshotService.Write(manifest, SnapshotService.SavedVarsDirFor(AddonsPath), dest);
+            RefreshSnapshots();
+            Status = $"Backed up {manifest.Addons.Count} addons + {manifest.SavedVarCount} config file(s).";
+        }
+        catch (Exception ex) { Status = "Backup failed: " + ex.Message; }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Saves the current install set + configs as a named profile (overwrites a same-named one).</summary>
+    public Task SaveProfileAsync(string name)
+    {
+        if (!IsPro) return Task.CompletedTask;
+        name = (name ?? "").Trim();
+        if (name.Length == 0) { Status = "Enter a profile name."; return Task.CompletedTask; }
+        try
+        {
+            var manifest = BuildManifest(name);
+            var dest = Path.Combine(SnapshotService.ProfilesDir, SnapshotService.SafeFileName(name) + ".zip");
+            SnapshotService.Write(manifest, SnapshotService.SavedVarsDirFor(AddonsPath), dest);
+            RefreshSnapshots();
+            Status = $"Saved profile “{name}” ({manifest.Addons.Count} addons).";
+        }
+        catch (Exception ex) { Status = "Couldn't save profile: " + ex.Message; }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Applies a snapshot: restores SavedVariables + categories, reinstalls any missing addons,
+    /// and (optionally) removes installed addons that aren't in the snapshot.</summary>
+    public async Task ApplySnapshotAsync(SnapshotEntry entry, bool restoreConfigs, bool removeExtras)
+    {
+        if (!IsPro || entry is null) return;
+        try
+        {
+            IsBusy = true;
+
+            // 1) SavedVariables (the configs)
+            int restored = 0;
+            if (restoreConfigs)
+                restored = SnapshotService.RestoreSavedVars(entry.FilePath, SnapshotService.SavedVarsDirFor(AddonsPath));
+
+            // 2) reinstall addons present in the snapshot but missing locally (ESOUI-managed only)
+            var installedFolders = new HashSet<string>(Installed.Select(i => i.FolderName), StringComparer.OrdinalIgnoreCase);
+            int added = 0, skipped = 0;
+            foreach (var a in entry.Manifest.Addons)
+            {
+                if (installedFolders.Contains(a.FolderName)) continue;
+                if (string.IsNullOrEmpty(a.EsouiId)) { skipped++; continue; }   // custom/private — can't auto-fetch
+                Status = $"Installing {a.Title}…";
+                try { await _installer.InstallAsync(a.EsouiId, AddonsPath); added++; }
+                catch { skipped++; }
+            }
+
+            // 3) optionally remove addons not in the snapshot (managed only; never touch libraries/junctions blindly)
+            int removed = 0;
+            if (removeExtras)
+            {
+                var keep = new HashSet<string>(entry.Manifest.Addons.Select(a => a.FolderName), StringComparer.OrdinalIgnoreCase);
+                foreach (var inst in Installed.Where(i => i.Managed && !keep.Contains(i.FolderName)).ToList())
+                {
+                    var (ok, _) = AddonInstaller.Uninstall(inst);
+                    if (ok) removed++;
+                }
+            }
+
+            // 4) restore category assignments from the snapshot
+            foreach (var a in entry.Manifest.Addons.Where(a => !string.IsNullOrWhiteSpace(a.Category)))
+                _settings.InstalledCategories[a.FolderName] = a.Category;
+            _settingsStore.Save(_settings);
+
+            RescanInstalled();
+            ApplyBrowse();
+
+            var bits = new List<string>();
+            if (added > 0) bits.Add($"installed {added}");
+            if (removed > 0) bits.Add($"removed {removed}");
+            if (restored > 0) bits.Add($"restored {restored} config file(s)");
+            if (skipped > 0) bits.Add($"{skipped} skipped (not on ESOUI)");
+            Status = bits.Count > 0 ? $"Applied “{entry.Name}”: {string.Join(", ", bits)}." : $"Applied “{entry.Name}” — nothing to change.";
+        }
+        catch (Exception ex) { Status = "Apply failed: " + ex.Message; }
+        finally { IsBusy = false; }
+    }
+
+    /// <summary>Deletes a snapshot file and refreshes the lists.</summary>
+    public void DeleteSnapshot(SnapshotEntry entry)
+    {
+        if (entry is null) return;
+        try { if (File.Exists(entry.FilePath)) File.Delete(entry.FilePath); Status = $"Deleted “{entry.Name}”."; }
+        catch (Exception ex) { Status = "Couldn't delete: " + ex.Message; }
+        RefreshSnapshots();
+    }
+
+    /// <summary>Sets the multi-PC sync folder (typically inside a cloud-synced drive) and persists it.</summary>
+    public void SetSyncFolder(string path)
+    {
+        _settings.SyncFolder = (path ?? "").Trim();
+        _settingsStore.Save(_settings);
+        OnPropertyChanged(nameof(SyncFolder));
+        OnPropertyChanged(nameof(HasSyncFolder));
+        Status = HasSyncFolder ? $"Sync folder set to {SyncFolder}." : "Sync folder cleared.";
+    }
+
+    /// <summary>Pushes the current install set + configs to the sync folder (overwrites the sync slot).</summary>
+    public Task SyncPushAsync()
+    {
+        if (!IsPro) return Task.CompletedTask;
+        if (!HasSyncFolder) { Status = "Set a sync folder first."; return Task.CompletedTask; }
+        try
+        {
+            var manifest = BuildManifest($"Sync from {Environment.MachineName}");
+            var dest = Path.Combine(SyncFolder, SnapshotService.SyncFileName);
+            SnapshotService.Write(manifest, SnapshotService.SavedVarsDirFor(AddonsPath), dest);
+            Status = $"Pushed {manifest.Addons.Count} addons + {manifest.SavedVarCount} config(s) to sync.";
+        }
+        catch (Exception ex) { Status = "Sync push failed: " + ex.Message; }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Pulls the sync slot from the sync folder and applies it (restore configs, install missing).</summary>
+    public async Task SyncPullAsync(bool removeExtras)
+    {
+        if (!IsPro) return;
+        if (!HasSyncFolder) { Status = "Set a sync folder first."; return; }
+        var path = Path.Combine(SyncFolder, SnapshotService.SyncFileName);
+        if (!File.Exists(path)) { Status = "No sync snapshot found in that folder yet — push from another PC first."; return; }
+        var manifest = SnapshotService.ReadManifest(path);
+        if (manifest is null) { Status = "The sync snapshot is unreadable."; return; }
+        await ApplySnapshotAsync(new SnapshotEntry { FilePath = path, Manifest = manifest }, restoreConfigs: true, removeExtras: removeExtras);
     }
 
     private static void OpenUrl(string target)

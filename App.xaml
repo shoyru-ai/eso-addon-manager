@@ -6,6 +6,7 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
         <conv:UrlToImageConverter x:Key="UrlToImage"/>
         <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+        <conv:ZeroCountToVisibilityConverter x:Key="CountToVis"/>
         <!-- Palette -->
         <Color x:Key="BgColor">#FF1B1B1F</Color>
         <SolidColorBrush x:Key="Bg" Color="#FF1B1B1F"/>

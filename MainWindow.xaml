@@ -2,10 +2,12 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:b="clr-namespace:EsoAddons.Behaviors"
+        xmlns:mvvm="clr-namespace:EsoAddons.Mvvm"
         Title="{Binding AppVersion, StringFormat='Shoyru Addon Suite {0}'}" Height="760" Width="1240"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Bg}" FontFamily="Segoe UI Variable Text, Segoe UI">
     <Window.Resources>
+        <mvvm:BindingProxy x:Key="VmProxy" Data="{Binding}"/>
         <!-- Segmented filter button -->
         <Style x:Key="FilterAll" TargetType="Button" BasedOn="{StaticResource Ghost}">
             <Setter Property="Padding" Value="14,5"/>
@@ -106,6 +108,9 @@
                         Visibility="{Binding IsNotPro, Converter={StaticResource BoolToVis}}"/>
                 <Button Content="Manage Pro" Style="{StaticResource Ghost}" Click="ManageLicense_Click" Margin="0,0,8,0"
                         Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
+                <Button Content="⚙ Pro Tools" Style="{StaticResource Ghost}" Click="ProTools_Click" Margin="0,0,8,0"
+                        ToolTip="Profiles, backups, multi-PC sync &amp; auto-update (Pro)"
+                        Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
                 <Button Content="{Binding ThemeToggleLabel}" Style="{StaticResource Ghost}" Click="ToggleTheme_Click" Margin="0,0,8,0"
                         ToolTip="Switch dark/light (Pro)" Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
                 <Button Content="Change folder…" Style="{StaticResource Ghost}" Click="ChangeFolder_Click" Margin="0,0,8,0"/>
@@ -158,6 +163,13 @@
                                 <Button Content="🔒 Update All (Pro)" Style="{StaticResource Ghost}" Click="ManageLicense_Click" Margin="14,0,0,0"
                                         ToolTip="Updating addons is a Pro feature"
                                         Visibility="{Binding ShowProUpdateNudge, Converter={StaticResource BoolToVis}}"/>
+                                <TextBlock Text="Category:" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="18,0,6,0"
+                                           Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
+                                <ComboBox MinWidth="150" VerticalAlignment="Center"
+                                          ItemsSource="{Binding InstalledCategoryOptions}"
+                                          SelectedItem="{Binding SelectedInstalledCategory}"
+                                          ToolTip="Filter your installed addons by category (Pro)"
+                                          Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
                             </StackPanel>
                             <TextBlock Text="{Binding MissingDepsSummary}" Foreground="{StaticResource Danger}" FontSize="12" Margin="0,6,0,0"
                                        TextWrapping="Wrap" Visibility="{Binding AnyMissingDeps, Converter={StaticResource BoolToVis}}"/>
@@ -186,6 +198,8 @@
                                 </DataGridTemplateColumn>
                                 <DataGridTextColumn Header="Installed" Binding="{Binding DisplayVersion}" Width="*"/>
                                 <DataGridTextColumn Header="Latest" Binding="{Binding LatestVersion}" Width="*"/>
+                                <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="*"
+                                                    Visibility="{Binding Data.IsPro, Source={StaticResource VmProxy}, Converter={StaticResource BoolToVis}}"/>
                                 <DataGridTemplateColumn Header="" Width="Auto" MinWidth="170" CanUserSort="False">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
@@ -429,6 +443,20 @@
                                 <Button Content="ESOUI Page" Style="{StaticResource Ghost}"
                                         Visibility="{Binding HasDetailPage, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding OpenPageCommand}"/>
+                            </StackPanel>
+
+                            <!-- category assignment (Pro; installed addons only) -->
+                            <StackPanel Visibility="{Binding ShowCategoryEditor, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
+                                <TextBlock Text="CATEGORY" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Content="Set" Style="{StaticResource Update}" Padding="12,4" Margin="6,0,0,0"
+                                            Command="{Binding SetCategoryCommand}"/>
+                                    <ComboBox IsEditable="True" ItemsSource="{Binding KnownCategories}"
+                                              Text="{Binding DetailCategoryInput, UpdateSourceTrigger=PropertyChanged}"
+                                              ToolTip="Type a new category or pick an existing one"/>
+                                </DockPanel>
+                                <TextBlock Text="Group your Installed list into custom buckets. Leave blank and Set to clear."
+                                           Foreground="{DynamicResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
                             </StackPanel>
 
                             <!-- dependencies — status list + one-click Get (free; auto-install on install is Pro) -->
