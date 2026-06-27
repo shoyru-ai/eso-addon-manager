@@ -26,14 +26,20 @@ public class InstalledAddon : ObservableObject
     public string EsouiId { get => _esouiId; set => SetProperty(ref _esouiId, value); }
 
     private string _latestVersion = "";
-    public string LatestVersion { get => _latestVersion; set { if (SetProperty(ref _latestVersion, value)) OnPropertyChanged(nameof(UpdateAvailable)); } }
+    public string LatestVersion { get => _latestVersion; set { if (SetProperty(ref _latestVersion, value)) { OnPropertyChanged(nameof(UpdateAvailable)); OnPropertyChanged(nameof(ShowUpdate)); } } }
+
+    // Addon updates are a Pro feature. The VM sets ProUpdates = IsPro on each addon.
+    private bool _proUpdates;
+    public bool ProUpdates { get => _proUpdates; set { if (SetProperty(ref _proUpdates, value)) OnPropertyChanged(nameof(ShowUpdate)); } }
+    /// <summary>Show the Update button only for Pro users who have an available update.</summary>
+    public bool ShowUpdate => ProUpdates && UpdateAvailable;
 
     /// <summary>The ESOUI version we recorded at install/update time (empty for addons installed outside the app).</summary>
     private string _recordedVersion = "";
     public string RecordedVersion
     {
         get => _recordedVersion;
-        set { if (SetProperty(ref _recordedVersion, value)) { OnPropertyChanged(nameof(UpdateAvailable)); OnPropertyChanged(nameof(DisplayVersion)); } }
+        set { if (SetProperty(ref _recordedVersion, value)) { OnPropertyChanged(nameof(UpdateAvailable)); OnPropertyChanged(nameof(ShowUpdate)); OnPropertyChanged(nameof(DisplayVersion)); } }
     }
 
     public bool Managed => !string.IsNullOrEmpty(EsouiId);

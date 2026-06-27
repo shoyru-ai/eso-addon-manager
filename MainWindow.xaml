@@ -139,7 +139,11 @@
                             </DockPanel>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding UpdateSummary}" FontSize="13" Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
-                                <Button Content="Update All" Style="{StaticResource Update}" Command="{Binding UpdateAllCommand}" Margin="14,0,0,0"/>
+                                <Button Content="Update All" Style="{StaticResource Update}" Command="{Binding UpdateAllCommand}" Margin="14,0,0,0"
+                                        Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
+                                <Button Content="🔒 Update All (Pro)" Style="{StaticResource Ghost}" Click="ManageLicense_Click" Margin="14,0,0,0"
+                                        ToolTip="Updating addons is a Pro feature"
+                                        Visibility="{Binding ShowProUpdateNudge, Converter={StaticResource BoolToVis}}"/>
                             </StackPanel>
                         </StackPanel>
                         <DataGrid Grid.Row="2" ItemsSource="{Binding InstalledView}" SelectedItem="{Binding SelectedInstalled}" Margin="6,0,6,6">
@@ -160,7 +164,7 @@
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                                 <TextBlock Text="{Binding Status}" Foreground="{StaticResource Muted}" FontSize="12" Margin="0,0,8,0"/>
                                                 <Button Content="Update" Style="{StaticResource Update}" Padding="10,4" Margin="0,0,6,0"
-                                                        Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVis}}"
+                                                        Visibility="{Binding ShowUpdate, Converter={StaticResource BoolToVis}}"
                                                         Command="{Binding DataContext.UpdateCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                         CommandParameter="{Binding}"/>
                                                 <Button Content="Remove" Style="{StaticResource Ghost}" Padding="10,4"
@@ -318,7 +322,7 @@
                                                     Command="{Binding DataContext.InstallMyAddonCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                     CommandParameter="{Binding}"/>
                                             <Button Content="Update" Style="{StaticResource Update}" Padding="10,4" Margin="0,0,6,0"
-                                                    Visibility="{Binding UpdateAvailable, Converter={StaticResource BoolToVis}}"
+                                                    Visibility="{Binding ShowUpdate, Converter={StaticResource BoolToVis}}"
                                                     Command="{Binding DataContext.InstallMyAddonCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                     CommandParameter="{Binding}"/>
                                             <Button Content="Remove" Style="{StaticResource Ghost}" Padding="10,4"
@@ -399,8 +403,8 @@
                                         Command="{Binding OpenPageCommand}"/>
                             </StackPanel>
 
-                            <!-- dependencies (installed addon/library) -->
-                            <StackPanel Visibility="{Binding HasDependencies, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
+                            <!-- dependencies — PRO: full status list + one-click Get -->
+                            <StackPanel Visibility="{Binding ShowDepsList, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
                                 <TextBlock Text="DEPENDENCIES" Foreground="{StaticResource Muted}" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
                                 <ItemsControl ItemsSource="{Binding DetailDependencies}">
                                     <ItemsControl.ItemTemplate>
@@ -440,10 +444,16 @@
                                 </ItemsControl>
                             </StackPanel>
 
+                            <!-- dependencies — FREE: name the required libraries, but don't auto-install (Pro does) -->
+                            <StackPanel Visibility="{Binding ShowDepsFreeNote, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
+                                <TextBlock Text="DEPENDENCIES" Foreground="{StaticResource Muted}" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
+                                <TextBlock Text="{Binding DepFreeNote}" TextWrapping="Wrap" Foreground="{StaticResource Danger}" FontSize="12"/>
+                            </StackPanel>
+
                             <!-- dependencies note (browse mode — ESOUI API doesn't expose deps pre-install) -->
                             <StackPanel Visibility="{Binding ShowDepAutoNote, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
                                 <TextBlock Text="DEPENDENCIES" Foreground="{StaticResource Muted}" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
-                                <TextBlock Text="Any required libraries are detected and installed automatically when you install this addon." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="12"/>
+                                <TextBlock Text="Required libraries are installed automatically with Pro." TextWrapping="Wrap" Foreground="{StaticResource Muted}" FontSize="12"/>
                             </StackPanel>
 
                             <!-- what's new / changelog -->

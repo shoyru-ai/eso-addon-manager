@@ -47,9 +47,28 @@ public class MainViewModel : ObservableObject
     public bool IsPro
     {
         get => _isPro;
-        private set { if (SetProperty(ref _isPro, value)) OnPropertyChanged(nameof(IsNotPro)); }
+        private set { if (SetProperty(ref _isPro, value)) ApplyProState(); }
     }
     public bool IsNotPro => !IsPro;
+    /// <summary>Free-tier nudge in the Installed tab: shown when updates exist but the user isn't Pro.</summary>
+    public bool ShowProUpdateNudge => IsNotPro && UpdateCount > 0;
+
+    /// <summary>Pushes the Pro state onto the addon lists (updates are Pro) and refreshes gated UI.</summary>
+    private void ApplyProState()
+    {
+        foreach (var a in Installed) a.ProUpdates = IsPro;
+        foreach (var p in MyAddons) p.ProUpdates = IsPro;
+        OnPropertyChanged(nameof(IsNotPro));
+        OnPropertyChanged(nameof(ShowProUpdateNudge));
+        OnPropertyChanged(nameof(ShowDepsList));
+        OnPropertyChanged(nameof(ShowDepsFreeNote));
+    }
+
+    // ---- dependency detail gating (Pro = full list + auto-install; free = a "requires X" note) ----
+    public bool ShowDepsList => HasDependencies && IsPro;
+    public bool ShowDepsFreeNote => HasDependencies && IsNotPro;
+    private string _depFreeNote = "";
+    public string DepFreeNote { get => _depFreeNote; set => SetProperty(ref _depFreeNote, value); }
     public string ProBuyUrl => LicenseService.CheckoutUrl;
     public string SupportUrl => LicenseService.SupportUrl;
     public bool HasLicenseKey => _licenseInfo.HasKey;
@@ -308,7 +327,7 @@ public class MainViewModel : ObservableObject
     public bool HasDetailPage => !string.IsNullOrEmpty(DetailPageUrl);
     public ObservableCollection<DependencyStatus> DetailDependencies { get; } = new();
     private bool _hasDependencies;
-    public bool HasDependencies { get => _hasDependencies; set => SetProperty(ref _hasDependencies, value); }
+    public bool HasDependencies { get => _hasDependencies; set { if (SetProperty(ref _hasDependencies, value)) { OnPropertyChanged(nameof(ShowDepsList)); OnPropertyChanged(nameof(ShowDepsFreeNote)); } } }
     private bool _showDepAutoNote;
     public bool ShowDepAutoNote { get => _showDepAutoNote; set => SetProperty(ref _showDepAutoNote, value); }
     private bool _showInstall;
@@ -359,7 +378,7 @@ public class MainViewModel : ObservableObject
     private bool _isBusy;
     public bool IsBusy { get => _isBusy; set => SetProperty(ref _isBusy, value); }
     private int _updateCount;
-    public int UpdateCount { get => _updateCount; set { if (SetProperty(ref _updateCount, value)) OnPropertyChanged(nameof(UpdateSummary)); } }
+    public int UpdateCount { get => _updateCount; set { if (SetProperty(ref _updateCount, value)) { OnPropertyChanged(nameof(UpdateSummary)); OnPropertyChanged(nameof(ShowProUpdateNudge)); } } }
     public string UpdateSummary => UpdateCount == 0 ? "All up to date" : $"{UpdateCount} update(s) available";
 
     // ---- load ----
@@ -420,6 +439,7 @@ public class MainViewModel : ObservableObject
             Installed.Add(a);
         }
         RecountUpdates();
+        foreach (var a in Installed) a.ProUpdates = IsPro;   // updates are Pro
         InstalledView.Refresh();
 
         // Preserve the detail selection across the rescan so the detail pane — and its
@@ -454,6 +474,7 @@ public class MainViewModel : ObservableObject
             var inst = Installed.FirstOrDefault(i => i.FolderName.Equals(p.Name, StringComparison.OrdinalIgnoreCase));
             p.IsInstalled = inst is not null;
             p.InstalledVersion = inst?.Version ?? "";
+            p.ProUpdates = IsPro;   // updates are Pro
         }
     }
 
@@ -466,9 +487,9 @@ public class MainViewModel : ObservableObject
             await _installer.InstallFromUrlAsync(p.DownloadUrl, AddonsPath);
             _state.Set(p.Name, p.Version); _state.Save();
             RescanInstalled();
-            // Auto-install any required libraries the addon declares (## DependsOn), e.g. LibAddonMenu-2.0 —
-            // same as the Browse tab. Without this a custom addon crashes in-game if a dep is missing.
-            var deps = await EnsureDependenciesForAsync(new[] { p.Name });
+            // Auto-install required libraries (## DependsOn) — a PRO feature. Free users see the dependency
+            // named in the detail pane and install it themselves.
+            var deps = IsPro ? await EnsureDependenciesForAsync(new[] { p.Name }) : 0;
             RefreshMyAddonStatus();
             p.Status = "";
             Status = deps > 0 ? $"Installed {p.Title} (+{deps} required library/ies)." : $"Installed {p.Title}.";
@@ -572,7 +593,7 @@ public class MainViewModel : ObservableObject
         BrowseDetailInstalled = false;
         ShowManage = true;
         ShowMyAddonActions = false;
-        DetailUpdateAvailable = a.UpdateAvailable;
+        DetailUpdateAvailable = a.UpdateAvailable && IsPro;   // updating addons is Pro
         DetailInstallTarget = null;
         DetailRemoveTarget = a;
         DetailTitle = a.Title;
@@ -653,6 +674,7 @@ public class MainViewModel : ObservableObject
         foreach (var d in p.Dependencies)
             DetailDependencies.Add(new DependencyStatus { Name = d, IsInstalled = installed.Contains(d), IsOptional = false, IsGettable = _catalogByDir.ContainsKey(d) });
         HasDependencies = DetailDependencies.Count > 0;
+        SetDepFreeNote();
         ShowDepAutoNote = false;
         // hide installed/browse buttons, show My-Addon actions
         DetailIsInstalled = false;
@@ -663,7 +685,7 @@ public class MainViewModel : ObservableObject
         ShowMyAddonActions = true;
         DetailMyAddonTarget = p;
         MyDetailShowInstall = p.ShowInstall;
-        MyDetailUpdateAvailable = p.UpdateAvailable;
+        MyDetailUpdateAvailable = p.UpdateAvailable && IsPro;   // updating addons is Pro
         MyDetailShowRemove = p.ShowRemove;
     }
 
@@ -676,6 +698,16 @@ public class MainViewModel : ObservableObject
         foreach (var d in a.OptionalDependencies)
             DetailDependencies.Add(new DependencyStatus { Name = d, IsInstalled = installed.Contains(d), IsOptional = true, IsGettable = _catalogByDir.ContainsKey(d) });
         HasDependencies = DetailDependencies.Count > 0;
+        SetDepFreeNote();
+    }
+
+    /// <summary>Builds the free-tier "Requires: X, Y. Get Pro to install dependencies automatically." note.</summary>
+    private void SetDepFreeNote()
+    {
+        var required = DetailDependencies.Where(d => !d.IsOptional).Select(d => d.Name).ToList();
+        DepFreeNote = required.Count > 0
+            ? $"⚠ Requires: {string.Join(", ", required)}.  Install it yourself, or get Pro to auto-install dependencies."
+            : "";
     }
 
     // ---- actions ----
@@ -688,7 +720,7 @@ public class MainViewModel : ObservableObject
             await _installer.InstallAsync(addon.Id, AddonsPath);
             RecordInstalled(addon);
             RescanInstalled();
-            var deps = await EnsureDependenciesForAsync(addon.Dirs);
+            var deps = IsPro ? await EnsureDependenciesForAsync(addon.Dirs) : 0;   // auto-deps = Pro
             addon.IsInstalled = true;
             addon.Status = "Installed";
             if (ReferenceEquals(_selectedBrowse, addon)) { ShowInstall = false; BrowseDetailInstalled = true; }
