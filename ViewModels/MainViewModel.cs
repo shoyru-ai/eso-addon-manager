@@ -64,6 +64,21 @@ public class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowDepsFreeNote));
     }
 
+    // ---- theme (Pro: switch dark/light) ----
+    public bool IsLightTheme => string.Equals(_settings.Theme, ThemeManager.Light, StringComparison.OrdinalIgnoreCase);
+    public string ThemeToggleLabel => IsLightTheme ? "🌙 Dark mode" : "☀ Light mode";
+
+    /// <summary>Toggle dark/light. Pro only. Persists + applies live.</summary>
+    public void ToggleTheme()
+    {
+        if (!IsPro) return;
+        _settings.Theme = IsLightTheme ? ThemeManager.Dark : ThemeManager.Light;
+        _settingsStore.Save(_settings);
+        ThemeManager.Apply(_settings.Theme);
+        OnPropertyChanged(nameof(IsLightTheme));
+        OnPropertyChanged(nameof(ThemeToggleLabel));
+    }
+
     // ---- dependency detail gating (Pro = full list + auto-install; free = a "requires X" note) ----
     public bool ShowDepsList => HasDependencies && IsPro;
     public bool ShowDepsFreeNote => HasDependencies && IsNotPro;
@@ -146,6 +161,7 @@ public class MainViewModel : ObservableObject
         _ppeChannel = ppeChannel;
         _installer = new AddonInstaller(_client);
         _settings = _settingsStore.Load();
+        ThemeManager.Apply(_settings.Theme);   // apply saved theme before the UI renders
         if (!string.IsNullOrWhiteSpace(addonsOverride))
         {
             // Transient override from the --addons CLI flag (e.g. a clean sandbox folder). Not persisted.

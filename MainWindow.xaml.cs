@@ -64,6 +64,8 @@ public partial class MainWindow : Window
     // ---- Pro license dialog ----
     private void ManageLicense_Click(object sender, RoutedEventArgs e) => ShowLicenseDialog();
 
+    private void ToggleTheme_Click(object sender, RoutedEventArgs e) => _vm.ToggleTheme();
+
     private void ShowLicenseDialog()
     {
         Brush B(string key, string fallback) =>
@@ -72,7 +74,7 @@ public partial class MainWindow : Window
         var win = new Window
         {
             Title = "Shoyru Addon Suite - Pro",
-            Width = 460, MinWidth = 420,
+            Width = 490, MinWidth = 460,
             SizeToContent = SizeToContent.Height,
             Owner = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -97,6 +99,9 @@ public partial class MainWindow : Window
                 : "Pro unlocks premium tool features (addon profiles, backups, multi-PC sync, and more). Your addons are always free — Pro is for the manager.",
             Foreground = B("Muted", "#9A9A9A"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 14),
         });
+
+        // Free vs Pro comparison — the user's current tier is outlined/highlighted
+        panel.Children.Add(BuildComparison(B));
 
         var status = new TextBlock { Foreground = B("Muted", "#9A9A9A"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0), Visibility = Visibility.Collapsed };
 
@@ -144,6 +149,79 @@ public partial class MainWindow : Window
 
         win.Content = panel;
         win.ShowDialog();
+    }
+
+    /// <summary>Free vs Pro feature comparison; the user's current tier column is outlined + highlighted.</summary>
+    private UIElement BuildComparison(Func<string, string, Brush> B)
+    {
+        var rows = new (string feat, bool free, bool pro)[]
+        {
+            ("Browse, search & install addons", true,  true),
+            ("Remove addons",                   true,  true),
+            ("See required dependencies",       true,  true),
+            ("Update addons (incl. Update All)",false, true),
+            ("Auto-install dependencies",       false, true),
+            ("Dark / light theme",              false, true),
+            ("Auto-update on launch",           false, true),
+            ("Profiles, backups & PC sync",     false, true),
+        };
+
+        var grid = new Grid { Margin = new Thickness(0, 2, 0, 14) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        foreach (var _ in rows) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        int yourCol = _vm.IsPro ? 2 : 1;
+
+        // highlight the current tier's whole column
+        var hl = new Border
+        {
+            Background = B("UpdateRow", "#1F5B8DEF"),
+            BorderBrush = B("Accent", "#5B8DEF"),
+            BorderThickness = new Thickness(2),
+            CornerRadius = new CornerRadius(8),
+            Margin = new Thickness(-3, -2, -3, -2),
+        };
+        Grid.SetColumn(hl, yourCol); Grid.SetRow(hl, 0); Grid.SetRowSpan(hl, rows.Length + 1);
+        grid.Children.Add(hl);
+
+        TextBlock Hdr(string t, bool you)
+        {
+            var tb = new TextBlock
+            {
+                Text = you ? t + "  (you)" : t,
+                TextAlignment = TextAlignment.Center, FontWeight = FontWeights.Bold, FontSize = 12,
+                Foreground = you ? B("Accent", "#5B8DEF") : B("Text", "#E6E6E6"),
+                Margin = new Thickness(0, 0, 0, 7),
+            };
+            return tb;
+        }
+        var fh = Hdr("Free", yourCol == 1); Grid.SetColumn(fh, 1); Grid.SetRow(fh, 0); grid.Children.Add(fh);
+        var ph = Hdr("Pro", yourCol == 2); Grid.SetColumn(ph, 2); Grid.SetRow(ph, 0); grid.Children.Add(ph);
+
+        for (int i = 0; i < rows.Length; i++)
+        {
+            var (feat, free, pro) = rows[i];
+            var ft = new TextBlock
+            {
+                Text = feat, Foreground = B("Text", "#E6E6E6"), FontSize = 12, TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 3, 8, 3), VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(ft, 0); Grid.SetRow(ft, i + 1); grid.Children.Add(ft);
+
+            TextBlock Mark(bool has) => new()
+            {
+                Text = has ? "✓" : "—", TextAlignment = TextAlignment.Center, FontSize = 13,
+                FontWeight = has ? FontWeights.Bold : FontWeights.Normal,
+                Foreground = has ? B("Good", "#5BBF73") : B("Muted", "#9A9A9A"),
+                Margin = new Thickness(0, 3, 0, 3),
+            };
+            var fm = Mark(free); Grid.SetColumn(fm, 1); Grid.SetRow(fm, i + 1); grid.Children.Add(fm);
+            var pm = Mark(pro); Grid.SetColumn(pm, 2); Grid.SetRow(pm, i + 1); grid.Children.Add(pm);
+        }
+        return grid;
     }
 
     /// <summary>Modal password prompt for the Custom Addons tab. Unlocks for the rest of the session.</summary>

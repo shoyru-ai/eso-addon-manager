@@ -8,6 +8,9 @@ public class AppSettings
 {
     /// <summary>If set, overrides auto-detection of the AddOns folder.</summary>
     public string AddonsPathOverride { get; set; } = "";
+
+    /// <summary>UI theme: "dark" (default) or "light". Switching is a Pro feature.</summary>
+    public string Theme { get; set; } = "dark";
 }
 
 public class SettingsStore
