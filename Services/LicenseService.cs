@@ -21,7 +21,7 @@ public class LicenseService
     /// <summary>The Pro checkout link (Lemon Squeezy "Buy" URL).</summary>
     public const string CheckoutUrl = "https://shoyruai.lemonsqueezy.com/checkout/buy/72acd5b2-5542-48a2-8cef-e94bf3333ada";
     /// <summary>Optional "Support Shoyru" donation link.</summary>
-    public const string SupportUrl = "https://ko-fi.com/shoyru";
+    public const string SupportUrl = "https://streamelements.com/shoyru/tip";
     // ---------------------------------------------------------------------------------
 
     private const string ActivateUrl   = "https://api.lemonsqueezy.com/v1/licenses/activate";
