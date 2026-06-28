@@ -6,7 +6,12 @@ namespace EsoAddons.Services;
 /// <summary>Result of a Lemon Squeezy license activate/validate call.</summary>
 public record LicenseResult(bool Ok, string Status, string InstanceId, string ProductId, string CustomerName, string Error)
 {
-    /// <summary>True if the call succeeded, the license is active, and it's for OUR product.</summary>
+    /// <summary>License expiry (ISO-8601) — the subscription period end; empty/null for lifetime keys.</summary>
+    public string ExpiresAt { get; init; } = "";
+    /// <summary>The purchased variant id (used with product id to name the plan).</summary>
+    public string VariantId { get; init; } = "";
+
+    /// <summary>True if the call succeeded, the license is active, and it's for one of OUR products.</summary>
     public bool IsPro => Ok && Status == "active" && LicenseService.ProductMatches(ProductId);
 }
 
@@ -14,16 +19,6 @@ public record LicenseResult(bool Ok, string Status, string InstanceId, string Pr
 /// device. The activate/validate endpoints are keyed by the license itself — no API key in the client.</summary>
 public class LicenseService
 {
-    // ----- TODO: fill these in after creating the "Pro" product in Lemon Squeezy -----
-    /// <summary>Your Pro product id (from the Lemon Squeezy product). Empty = accept any (dev mode).
-    /// Set this so keys from other Lemon Squeezy products can't unlock Pro.</summary>
-    public const string ExpectedProductId = "1178447";
-    /// <summary>The Pro checkout link (Lemon Squeezy "Buy" URL).</summary>
-    public const string CheckoutUrl = "https://shoyruai.lemonsqueezy.com/checkout/buy/72acd5b2-5542-48a2-8cef-e94bf3333ada";
-    /// <summary>Optional "Support Shoyru" donation link.</summary>
-    public const string SupportUrl = "https://streamelements.com/shoyru/tip";
-    // ---------------------------------------------------------------------------------
-
     private const string ActivateUrl   = "https://api.lemonsqueezy.com/v1/licenses/activate";
     private const string ValidateUrl   = "https://api.lemonsqueezy.com/v1/licenses/validate";
     private const string DeactivateUrl = "https://api.lemonsqueezy.com/v1/licenses/deactivate";
@@ -31,8 +26,13 @@ public class LicenseService
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(20) };
     public LicenseService() => _http.DefaultRequestHeaders.Add("Accept", "application/json");
 
-    public static bool ProductMatches(string productId) =>
-        ExpectedProductId.Length == 0 || productId == ExpectedProductId;
+    /// <summary>A license unlocks Pro if it's for one of our configured products (or any, in dev when none
+    /// are configured).</summary>
+    public static bool ProductMatches(string productId)
+    {
+        var ids = BusinessConfig.Current.AcceptedProductIds;
+        return ids.Count == 0 || ids.Contains(productId);
+    }
 
     /// <summary>Activates a key on THIS device (creates/uses a Lemon Squeezy instance; the product's
     /// activation limit caps how many devices a key works on).</summary>
@@ -83,17 +83,21 @@ public class LicenseService
             bool ok = r.TryGetProperty(okField, out var okEl) && okEl.ValueKind == JsonValueKind.True;
             var err = Str(r, "error");
 
-            string status = "", instanceId = "", productId = "", customer = "";
+            string status = "", instanceId = "", productId = "", customer = "", expiresAt = "", variantId = "";
             if (r.TryGetProperty("license_key", out var lk) && lk.ValueKind == JsonValueKind.Object)
+            {
                 status = Str(lk, "status");
+                expiresAt = Str(lk, "expires_at");   // subscription period end; null/empty for lifetime
+            }
             if (r.TryGetProperty("instance", out var inst) && inst.ValueKind == JsonValueKind.Object)
                 instanceId = Str(inst, "id");
             if (r.TryGetProperty("meta", out var meta) && meta.ValueKind == JsonValueKind.Object)
             {
                 productId = NumOrStr(meta, "product_id");
+                variantId = NumOrStr(meta, "variant_id");
                 customer = Str(meta, "customer_name");
             }
-            return new LicenseResult(ok, status, instanceId, productId, customer, err);
+            return new LicenseResult(ok, status, instanceId, productId, customer, err) { ExpiresAt = expiresAt, VariantId = variantId };
         }
         catch (Exception ex) { return new LicenseResult(false, "", "", "", "", "Bad response: " + ex.Message); }
     }

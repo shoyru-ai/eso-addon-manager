@@ -91,9 +91,67 @@ public class MainViewModel : ObservableObject
     public bool ShowDepsFreeNote => HasDependencies && IsNotPro;
     private string _depFreeNote = "";
     public string DepFreeNote { get => _depFreeNote; set => SetProperty(ref _depFreeNote, value); }
-    public string ProBuyUrl => LicenseService.CheckoutUrl;
-    public string SupportUrl => LicenseService.SupportUrl;
+    public string SupportUrl => BusinessConfig.Current.SupportUrl;
     public bool HasLicenseKey => _licenseInfo.HasKey;
+
+    /// <summary>The Pro plans shown as cards on the Get Pro screen (monthly/annual/lifetime).</summary>
+    public List<PlanInfo> ProPlans => BusinessConfig.Current.Plans;
+
+    // ---- current license details (for the Manage Pro plan/renewal line + cancel) ----
+    private readonly SubscriptionBackend _backend = new();
+    private string _licenseProductId = "";
+    private string _licenseExpiresAtUtc = "";
+
+    /// <summary>Friendly plan name for the active license, e.g. "Monthly"/"Annual"/"Lifetime".</summary>
+    public string PlanName =>
+        BusinessConfig.Current.PlanNamesByProductId.TryGetValue(_licenseProductId, out var n) ? n : "Pro";
+
+    /// <summary>True when the active license is a subscription (has a period end) vs. a lifetime license.</summary>
+    public bool IsSubscription => IsPro && !string.IsNullOrWhiteSpace(_licenseExpiresAtUtc);
+
+    /// <summary>"Renews Jul 28, 2026" for subs, "Lifetime — never expires" otherwise.</summary>
+    public string RenewalText
+    {
+        get
+        {
+            if (!IsPro) return "";
+            if (string.IsNullOrWhiteSpace(_licenseExpiresAtUtc)) return "Lifetime — never expires";
+            return DateTimeOffset.TryParse(_licenseExpiresAtUtc, out var dt)
+                ? $"Valid until {dt.LocalDateTime:MMM d, yyyy}"
+                : "";
+        }
+    }
+
+    private void CaptureLicenseDetails(LicenseResult res)
+    {
+        _licenseProductId = res.ProductId;
+        _licenseExpiresAtUtc = res.ExpiresAt;
+        OnPropertyChanged(nameof(PlanName));
+        OnPropertyChanged(nameof(IsSubscription));
+        OnPropertyChanged(nameof(RenewalText));
+    }
+
+    /// <summary>Opens the customer's Lemon Squeezy portal (via the backend) to manage/cancel.</summary>
+    public async Task ManageSubscriptionAsync()
+    {
+        if (!IsSubscription || !_licenseInfo.HasKey) return;
+        Status = "Opening subscription portal…";
+        var url = await _backend.GetPortalUrlAsync(_licenseInfo.Key);
+        if (string.IsNullOrEmpty(url)) { Status = "Couldn't open the portal — try again later."; return; }
+        OpenUrl(url);
+        Status = "Opened your subscription portal in the browser.";
+    }
+
+    /// <summary>Cancels the active subscription at period end (via the backend). Returns a status message.</summary>
+    public async Task<string> CancelSubscriptionAsync()
+    {
+        if (!IsSubscription || !_licenseInfo.HasKey) return "No subscription to cancel.";
+        Status = "Cancelling subscription…";
+        var (ok, endsAt, error) = await _backend.CancelAsync(_licenseInfo.Key);
+        if (!ok) return Status = $"Couldn't cancel: {error}";
+        var when = DateTimeOffset.TryParse(endsAt, out var dt) ? dt.LocalDateTime.ToString("MMM d, yyyy") : "the end of your billing period";
+        return Status = $"Subscription cancelled — Pro stays active until {when}.";
+    }
 
     /// <summary>Validates the stored license on launch. Online check when possible; if offline, falls back to
     /// the last-known Pro state for a grace window so a dropped connection doesn't lock out a paying user.</summary>
@@ -114,6 +172,7 @@ public class MainViewModel : ObservableObject
         }
 
         IsPro = res.IsPro;
+        CaptureLicenseDetails(res);
         _licenseInfo.ProCached = res.IsPro;
         _licenseInfo.LastValidatedUtc = DateTime.UtcNow;
         if (res.ProductId.Length > 0) _licenseInfo.ProductId = res.ProductId;
@@ -147,6 +206,7 @@ public class MainViewModel : ObservableObject
         };
         _licenseStore.Save(_licenseInfo);
         IsPro = true;
+        CaptureLicenseDetails(res);
         OnPropertyChanged(nameof(HasLicenseKey));
         return Status = res.CustomerName.Length > 0 ? $"Pro activated — thanks, {res.CustomerName}!" : "Pro activated. Thank you!";
     }

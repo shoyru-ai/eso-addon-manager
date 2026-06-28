@@ -525,16 +525,36 @@ public partial class MainWindow : Window
 
         if (!_vm.IsPro)
         {
-            panel.Children.Add(new TextBlock { Text = "License key", Foreground = B("Muted", "#9A9A9A"), FontSize = 14, Margin = new Thickness(0, 0, 0, 4) });
+            // Pricing cards — open the LS checkout; after buying, the user returns and activates the key.
+            foreach (var plan in _vm.ProPlans)
+            {
+                var card = new Border
+                {
+                    Background = B("Panel", "#252526"), BorderBrush = B("Border", "#3A3A3A"), BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(8), Padding = new Thickness(12, 10, 12, 10), Margin = new Thickness(0, 0, 0, 8),
+                };
+                var g = new Grid();
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                left.Children.Add(new TextBlock { Text = $"{plan.Name}  ·  {plan.Price} {plan.Period}".Trim(), Foreground = B("Text", "#E6E6E6"), FontSize = 15, FontWeight = FontWeights.Bold });
+                if (!string.IsNullOrWhiteSpace(plan.Tagline))
+                    left.Children.Add(new TextBlock { Text = plan.Tagline, Foreground = B("Accent", "#5B8DEF"), FontSize = 12, Margin = new Thickness(0, 2, 0, 0) });
+                Grid.SetColumn(left, 0); g.Children.Add(left);
+                var choose = new Button { Content = plan.Recurring ? "Subscribe" : "Buy", VerticalAlignment = VerticalAlignment.Center };
+                if (TryFindResource("Update") is Style cs) choose.Style = cs;
+                var url = plan.CheckoutUrl;
+                choose.Click += (_, _) => OpenUrl(url);
+                Grid.SetColumn(choose, 1); g.Children.Add(choose);
+                card.Child = g;
+                panel.Children.Add(card);
+            }
+
+            panel.Children.Add(new TextBlock { Text = "Already have a license key?", Foreground = B("Muted", "#9A9A9A"), FontSize = 13, Margin = new Thickness(0, 8, 0, 4) });
             var keyBox = new TextBox { FontSize = 15, Padding = new Thickness(6, 5, 6, 5), Margin = new Thickness(0, 0, 0, 10) };
             panel.Children.Add(keyBox);
-
-            var row = new StackPanel { Orientation = Orientation.Horizontal };
-            var activate = new Button { Content = "Activate", Margin = new Thickness(0, 0, 8, 0) };
+            var activate = new Button { Content = "Activate", HorizontalAlignment = HorizontalAlignment.Left };
             if (TryFindResource("Primary") is Style ps) activate.Style = ps;
-            var buy = new Button { Content = "Buy Pro" };
-            if (TryFindResource("Update") is Style us) buy.Style = us;
-            buy.Click += (_, _) => OpenUrl(_vm.ProBuyUrl);
             activate.Click += async (_, _) =>
             {
                 activate.IsEnabled = false;
@@ -544,12 +564,38 @@ public partial class MainWindow : Window
                 activate.IsEnabled = true;
                 if (_vm.IsPro) win.Close();   // unlocked — close; header shows the PRO badge
             };
-            row.Children.Add(activate);
-            row.Children.Add(buy);
-            panel.Children.Add(row);
+            panel.Children.Add(activate);
         }
         else
         {
+            // Plan + renewal
+            panel.Children.Add(new TextBlock { Text = $"Plan: {_vm.PlanName}", Foreground = B("Text", "#E6E6E6"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 2) });
+            if (!string.IsNullOrWhiteSpace(_vm.RenewalText))
+                panel.Children.Add(new TextBlock { Text = _vm.RenewalText, Foreground = B("Muted", "#9A9A9A"), FontSize = 13, Margin = new Thickness(0, 0, 0, 12) });
+
+            // Subscription management (lifetime licenses have nothing to manage)
+            if (_vm.IsSubscription)
+            {
+                var subRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+                var manage = new Button { Content = "Manage subscription", Margin = new Thickness(0, 0, 8, 0) };
+                if (TryFindResource("Primary") is Style ms) manage.Style = ms;
+                manage.Click += async (_, _) => { await _vm.ManageSubscriptionAsync(); };
+                var cancel = new Button { Content = "Cancel subscription" };
+                if (TryFindResource("Ghost") is Style cgs) cancel.Style = cgs;
+                cancel.Click += async (_, _) =>
+                {
+                    if (MessageBox.Show(win, "Cancel your Pro subscription? You'll keep Pro until the end of your current billing period.",
+                        "Cancel subscription", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
+                    cancel.IsEnabled = false;
+                    var msg = await _vm.CancelSubscriptionAsync();
+                    status.Text = msg; status.Visibility = Visibility.Visible;
+                    status.Foreground = B("Text", "#E6E6E6");
+                    cancel.IsEnabled = true;
+                };
+                subRow.Children.Add(manage); subRow.Children.Add(cancel);
+                panel.Children.Add(subRow);
+            }
+
             var removeRow = new StackPanel { Orientation = Orientation.Horizontal };
             var remove = new Button { Content = "Remove from this device", Margin = new Thickness(0, 0, 8, 0) };
             if (TryFindResource("Ghost") is Style gs) remove.Style = gs;

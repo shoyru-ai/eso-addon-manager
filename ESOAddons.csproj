@@ -14,6 +14,12 @@
     <StartupObject>EsoAddons.App</StartupObject>
   </PropertyGroup>
 
+  <!-- Business config (product IDs, checkout URLs, backend URL) — git-ignored, embedded into official
+       builds only. Absent in public clones (build still works; monetization just has no values). -->
+  <ItemGroup>
+    <EmbeddedResource Include="appconfig.json" Condition="Exists('appconfig.json')" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Velopack" Version="1.2.0" />
   </ItemGroup>
