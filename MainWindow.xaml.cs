@@ -550,8 +550,9 @@ public partial class MainWindow : Window
                     if (!string.IsNullOrWhiteSpace(p.Badge))
                         priceLine.Inlines.Add(new System.Windows.Documents.Run("    " + p.Badge)
                         { FontWeight = FontWeights.Bold, FontSize = 13, Foreground = B("Accent", "#5B8DEF") });
-                    tagline.Text = p.Tagline;
-                    getBtn.Content = p.Recurring ? "Subscribe" : "Buy";
+                    tagline.Text = string.IsNullOrWhiteSpace(p.AvailabilityNote) ? p.Tagline
+                        : string.IsNullOrWhiteSpace(p.Tagline) ? p.AvailabilityNote : $"{p.Tagline}  ·  {p.AvailabilityNote}";
+                    getBtn.Content = p.TrialDays > 0 ? $"Start {p.TrialDays}-day free trial" : (p.Recurring ? "Subscribe" : "Buy");
                 }
                 combo.SelectionChanged += (_, _) => Refresh();
                 combo.SelectedIndex = 0;   // first plan (Annual) is the default/nudge

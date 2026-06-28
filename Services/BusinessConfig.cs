@@ -15,6 +15,20 @@ public class PlanInfo
     public string Tagline { get; set; } = "";       // short note under the price (optional)
     public string CheckoutUrl { get; set; } = "";
     public bool Recurring { get; set; }             // true for subscriptions
+    public int TrialDays { get; set; }              // 0 = no trial; >0 shows "Start N-day free trial"
+    /// <summary>ISO date; if set, the plan is only offered until then (e.g. a launch-only Founder's Lifetime),
+    /// after which it auto-hides. Empty = always available.</summary>
+    public string AvailableUntil { get; set; } = "";
+
+    /// <summary>False once AvailableUntil has passed.</summary>
+    public bool IsAvailable =>
+        string.IsNullOrWhiteSpace(AvailableUntil) ||
+        (DateTimeOffset.TryParse(AvailableUntil, out var d) && d > DateTimeOffset.Now);
+
+    /// <summary>"only until Jan 1, 2027" for limited plans, else empty.</summary>
+    public string AvailabilityNote =>
+        !string.IsNullOrWhiteSpace(AvailableUntil) && DateTimeOffset.TryParse(AvailableUntil, out var d)
+            ? $"only until {d.LocalDateTime:MMM d, yyyy}" : "";
 }
 
 /// <summary>Business/monetization config (product IDs, checkout URLs, prices, backend URL). Loaded from an

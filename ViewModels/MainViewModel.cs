@@ -94,8 +94,8 @@ public class MainViewModel : ObservableObject
     public string SupportUrl => BusinessConfig.Current.SupportUrl;
     public bool HasLicenseKey => _licenseInfo.HasKey;
 
-    /// <summary>The Pro plans shown as cards on the Get Pro screen (monthly/annual/lifetime).</summary>
-    public List<PlanInfo> ProPlans => BusinessConfig.Current.Plans;
+    /// <summary>The Pro plans currently on offer (limited plans auto-drop after their AvailableUntil date).</summary>
+    public List<PlanInfo> ProPlans => BusinessConfig.Current.Plans.Where(p => p.IsAvailable).ToList();
 
     // ---- current license details (for the Manage Pro plan/renewal line + cancel) ----
     private readonly SubscriptionBackend _backend = new();

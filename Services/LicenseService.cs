@@ -11,8 +11,9 @@ public record LicenseResult(bool Ok, string Status, string InstanceId, string Pr
     /// <summary>The purchased variant id (used with product id to name the plan).</summary>
     public string VariantId { get; init; } = "";
 
-    /// <summary>True if the call succeeded, the license is active, and it's for one of OUR products.</summary>
-    public bool IsPro => Ok && Status == "active" && LicenseService.ProductMatches(ProductId);
+    /// <summary>True if the call succeeded, the license is active (or in its free trial), and it's for one
+    /// of OUR products.</summary>
+    public bool IsPro => Ok && (Status == "active" || Status == "on_trial") && LicenseService.ProductMatches(ProductId);
 }
 
 /// <summary>Validates "Pro" license keys against the Lemon Squeezy License API and binds them to this
