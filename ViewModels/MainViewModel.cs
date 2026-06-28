@@ -948,11 +948,11 @@ public class MainViewModel : ObservableObject
 
     // ==================== Pro: auto-update on launch ====================
 
-    /// <summary>Whether the first-run walkthrough has already been shown on this machine.</summary>
-    public bool WalkthroughSeen
+    /// <summary>Highest walkthrough version completed/skipped on this machine (0 = never).</summary>
+    public int WalkthroughVersion
     {
-        get => _settings.WalkthroughSeen;
-        set { if (value != _settings.WalkthroughSeen) { _settings.WalkthroughSeen = value; _settingsStore.Save(_settings); } }
+        get => _settings.WalkthroughVersion;
+        set { if (value != _settings.WalkthroughVersion) { _settings.WalkthroughVersion = value; _settingsStore.Save(_settings); } }
     }
 
     /// <summary>The app version last launched on this machine (for the post-update "what's new" tour).</summary>

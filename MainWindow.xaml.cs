@@ -22,8 +22,11 @@ public partial class MainWindow : Window
         {
             Diag.Log($"Loaded fired. version={UpdateChecker.CurrentVersion} autoupdate_env={Environment.GetEnvironmentVariable("ESOADDONS_AUTOUPDATE")}");
             await _vm.LoadAsync();
-            Diag.Log("LoadAsync done. checking license + app update…");
+            Diag.Log("LoadAsync done. checking license…");
             await _vm.CheckLicenseAsync();
+            // Greet promptly — right after the catalog + license load, BEFORE the update check/banner,
+            // so the walkthrough is the first thing a new user sees (not buried behind network calls).
+            MaybeShowOnboarding();
             await _vm.AutoUpdateOnLaunchAsync();   // Pro: silently update addons if the user opted in
             await _vm.CheckForAppUpdateAsync();
             Diag.Log($"update check done. available={_vm.AppUpdateAvailable} latest={_vm.AppUpdateVersion} exeUrl={_vm.AppUpdateExeUrl}");
@@ -33,7 +36,6 @@ public partial class MainWindow : Window
                 Diag.Log("auto-update hook firing…");
                 await ApplyAppUpdateAsync();
             }
-            MaybeShowOnboarding();
         };
     }
 
@@ -80,9 +82,13 @@ public partial class MainWindow : Window
 
     // ==================== First-run walkthrough (spotlight + card) ====================
 
+    /// <summary>Bump this when the first-run walkthrough changes enough to re-greet existing users once.</summary>
+    private const int CurrentWalkthroughVersion = 2;
+
     private sealed record WalkStep(int? Tab, Func<FrameworkElement?> Target, string Title, string Body);
     private List<WalkStep>? _walk;
     private int _walkIndex;
+    private bool _walkIsFirstRun;
 
     private List<WalkStep> BuildWalk()
     {
@@ -109,37 +115,35 @@ public partial class MainWindow : Window
         };
     }
 
-    private void StartWalkthrough()
-    {
-        _vm.WalkthroughSeen = true;   // mark immediately so it won't auto-open again
-        StartTour(BuildWalk());
-    }
+    private void StartWalkthrough() => StartTour(BuildWalk(), firstRun: true);
 
-    /// <summary>Runs any spotlight tour (the full first-run walkthrough, or a post-update "what's new" set).</summary>
-    private void StartTour(List<WalkStep> steps)
+    /// <summary>Runs any spotlight tour: the full first-run walkthrough (firstRun=true, marks the walkthrough
+    /// version complete when it ends) or a post-update "what's new" set (firstRun=false).</summary>
+    private void StartTour(List<WalkStep> steps, bool firstRun)
     {
         if (steps.Count == 0) return;
         _walk = steps;
         _walkIndex = 0;
+        _walkIsFirstRun = firstRun;
         WalkthroughHost.Visibility = Visibility.Visible;
         ShowWalkStep();
     }
 
-    /// <summary>First-run full walkthrough, or after an update a "what's new" tour of just the new features.
-    /// Stamps the current version so a given version's tour only shows once.</summary>
+    /// <summary>First-run full walkthrough (also re-greets once when the walkthrough version is bumped), or
+    /// after an update a "what's new" tour of just the new features.</summary>
     private void MaybeShowOnboarding()
     {
         var cur = UpdateChecker.CurrentVersion;
-        if (!_vm.WalkthroughSeen)
+        if (_vm.WalkthroughVersion < CurrentWalkthroughVersion)
         {
-            StartWalkthrough();   // brand-new user → full tour
+            StartWalkthrough();   // never completed the current walkthrough → greet
         }
         else if (!string.IsNullOrEmpty(_vm.LastSeenVersion) && VersionCompare.IsNewer(cur, _vm.LastSeenVersion))
         {
             var items = WhatsNewSince(_vm.LastSeenVersion);
             if (items.Count > 0) ShowWhatsNewDialog(cur, items);
         }
-        _vm.LastSeenVersion = cur;   // remember this version on both paths
+        _vm.LastSeenVersion = cur;   // remember this app version (for the next what's-new)
     }
 
     /// <summary>Curated registry of MEANINGFUL, workflow-affecting changes — one entry per spotlight-worthy
@@ -251,6 +255,8 @@ public partial class MainWindow : Window
     private void EndWalkthrough()
     {
         WalkthroughHost.Visibility = Visibility.Collapsed;
+        if (_walkIsFirstRun && _vm.WalkthroughVersion < CurrentWalkthroughVersion)
+            _vm.WalkthroughVersion = CurrentWalkthroughVersion;   // mark complete only on finish/skip
         _walk = null;
     }
 
@@ -297,7 +303,7 @@ public partial class MainWindow : Window
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
         var showMe = new Button { Content = "Show me what's new ▶", Margin = new Thickness(0, 0, 8, 0) };
         if (TryFindResource("Primary") is Style ps) showMe.Style = ps;
-        showMe.Click += (_, _) => { win.Close(); StartTour(items.Select(i => i.Step).ToList()); };
+        showMe.Click += (_, _) => { win.Close(); StartTour(items.Select(i => i.Step).ToList(), firstRun: false); };
         var close = new Button { Content = "Close", IsCancel = true, IsDefault = true };
         if (TryFindResource("Ghost") is Style gs) close.Style = gs;
         close.Click += (_, _) => win.Close();
@@ -305,6 +311,56 @@ public partial class MainWindow : Window
         Grid.SetRow(buttons, 2); grid.Children.Add(buttons);
 
         win.Content = grid;
+        win.ShowDialog();
+    }
+
+    // ==================== Full-size image viewer ====================
+
+    private void DetailImage_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        => ShowImageViewer(_vm.DetailImageUrl);
+
+    /// <summary>Opens the addon image at full size (downscaled to fit the screen, never upscaled) in a
+    /// dismissable viewer — so users can actually see the addon's screenshots.</summary>
+    private void ShowImageViewer(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return;
+        Brush B(string key, string fallback) =>
+            TryFindResource(key) as Brush ?? (Brush)new BrushConverter().ConvertFromString(fallback)!;
+
+        var img = new System.Windows.Controls.Image
+        {
+            Stretch = System.Windows.Media.Stretch.Uniform,
+            StretchDirection = System.Windows.Controls.StretchDirection.DownOnly,   // show true size; only shrink if huge
+            Margin = new Thickness(16),
+        };
+        Behaviors.ImageLoader.SetSourceUrl(img, url);
+
+        var hint = new TextBlock
+        {
+            Text = "Click anywhere or press Esc to close", Foreground = B("Muted", "#9A9A9A"),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 0, 8), FontSize = 12,
+        };
+
+        var root = new Grid { Background = B("Bg", "#1E1E1E") };
+        root.Children.Add(img);
+        root.Children.Add(hint);
+
+        var wa = SystemParameters.WorkArea;
+        var win = new Window
+        {
+            Title = string.IsNullOrWhiteSpace(_vm.DetailTitle) ? "Image" : _vm.DetailTitle,
+            Owner = this,
+            Width = Math.Min(1100, wa.Width * 0.9),
+            Height = Math.Min(820, wa.Height * 0.9),
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = B("Bg", "#1E1E1E"),
+            FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
+            ShowInTaskbar = false,
+            Content = root,
+        };
+        win.MouseLeftButtonUp += (_, _) => win.Close();
+        win.KeyDown += (_, _) => win.Close();
         win.ShowDialog();
     }
 

@@ -405,7 +405,9 @@
                         <StackPanel>
                             <Border Background="{DynamicResource Bg}" CornerRadius="8" Height="150" Margin="0,0,0,12"
                                     Visibility="{Binding HasDetailImage, Converter={StaticResource BoolToVis}}">
-                                <Image b:ImageLoader.SourceUrl="{Binding DetailImageUrl}" Stretch="Uniform" Margin="6"/>
+                                <Image b:ImageLoader.SourceUrl="{Binding DetailImageUrl}" Stretch="Uniform" Margin="6"
+                                       Cursor="Hand" MouseLeftButtonUp="DetailImage_Click"
+                                       ToolTip="Click to view full size"/>
                             </Border>
                             <TextBlock Text="{Binding DetailTitle}" FontSize="19" FontWeight="Bold" TextWrapping="Wrap"/>
                             <TextBlock Text="{Binding DetailMeta}" Foreground="{DynamicResource Muted}" FontSize="14" TextWrapping="Wrap" Margin="0,4,0,10"/>

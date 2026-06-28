@@ -23,9 +23,11 @@ public class AppSettings
     /// Installed tab group addons into custom buckets. Persisted across sessions.</summary>
     public Dictionary<string, string> InstalledCategories { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Set once the first-run walkthrough has been shown, so it doesn't auto-open again
-    /// (a fresh install has no settings file, so it shows again there).</summary>
-    public bool WalkthroughSeen { get; set; } = false;
+    /// <summary>Highest walkthrough version the user has completed (or skipped). The app auto-shows the
+    /// walkthrough while this is below the app's current walkthrough version, so a fresh install (0) sees it,
+    /// and bumping the walkthrough version re-greets everyone once. Only advanced when the tour is finished
+    /// or skipped — not merely opened — so an interrupted first launch still greets next time.</summary>
+    public int WalkthroughVersion { get; set; } = 0;
 
     /// <summary>The app version last launched, so after an update we can offer a "what's new" tour of
     /// only the features added since. Empty = never recorded.</summary>
