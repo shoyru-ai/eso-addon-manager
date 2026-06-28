@@ -18,6 +18,13 @@ public partial class MainWindow : Window
         InitializeComponent();
         _vm = new MainViewModel(addonsOverride, ppe);
         DataContext = _vm;
+        // Keep the walkthrough overlay (dim + spotlight) correct when the window resizes/maximizes.
+        WalkthroughHost.SizeChanged += (_, _) =>
+        {
+            if (_walk is not null && WalkthroughHost.Visibility == Visibility.Visible)
+                Dispatcher.BeginInvoke(new Action(() => PositionWalk(_walk[_walkIndex])),
+                    System.Windows.Threading.DispatcherPriority.Loaded);
+        };
         Loaded += async (_, _) =>
         {
             Diag.Log($"Loaded fired. version={UpdateChecker.CurrentVersion} autoupdate_env={Environment.GetEnvironmentVariable("ESOADDONS_AUTOUPDATE")}");
@@ -329,8 +336,7 @@ public partial class MainWindow : Window
 
         var img = new System.Windows.Controls.Image
         {
-            Stretch = System.Windows.Media.Stretch.Uniform,
-            StretchDirection = System.Windows.Controls.StretchDirection.DownOnly,   // show true size; only shrink if huge
+            Stretch = System.Windows.Media.Stretch.Uniform,   // scale to fill the viewer (up or down), keep aspect
             Margin = new Thickness(16),
         };
         Behaviors.ImageLoader.SetSourceUrl(img, url);
