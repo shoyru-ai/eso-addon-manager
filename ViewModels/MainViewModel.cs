@@ -97,6 +97,11 @@ public class MainViewModel : ObservableObject
     /// <summary>The Pro plans currently on offer (limited plans auto-drop after their AvailableUntil date).</summary>
     public List<PlanInfo> ProPlans => BusinessConfig.Current.Plans.Where(p => p.IsAvailable).ToList();
 
+    private readonly FeedbackClient _feedback = new();
+    /// <summary>Sends user feedback (auto-tagged with tier/version/OS). Returns true on success.</summary>
+    public Task<bool> SendFeedbackAsync(string type, string message, string contact)
+        => _feedback.SendAsync(type, message, contact, IsPro);
+
     // ---- current license details (for the Manage Pro plan/renewal line + cancel) ----
     private readonly SubscriptionBackend _backend = new();
     private string _licenseProductId = "";

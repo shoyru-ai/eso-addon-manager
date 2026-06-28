@@ -462,6 +462,71 @@ public partial class MainWindow : Window
         win.ShowDialog();
     }
 
+    private void Feedback_Click(object sender, RoutedEventArgs e) => ShowFeedbackDialog();
+
+    /// <summary>Feedback modal. A non-null fixedType hides the type picker (used by the upgrade-intent and
+    /// cancellation prompts). Auto-attaches version/tier/OS server-side.</summary>
+    private void ShowFeedbackDialog(string? fixedType = null, string? heading = null, string? prompt = null)
+    {
+        Brush B(string key, string fallback) =>
+            TryFindResource(key) as Brush ?? (Brush)new BrushConverter().ConvertFromString(fallback)!;
+
+        var win = new Window
+        {
+            Title = "Send Feedback", Width = 480, MinWidth = 420, SizeToContent = SizeToContent.Height,
+            Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = B("Bg", "#1E1E1E"), FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
+            ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
+        };
+        var panel = new StackPanel { Margin = new Thickness(18) };
+        panel.Children.Add(new TextBlock { Text = heading ?? "Send feedback", Foreground = B("Text", "#E6E6E6"), FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 4) });
+        panel.Children.Add(new TextBlock { Text = "We read everything — it directly shapes what we build next.", Foreground = B("Muted", "#9A9A9A"), FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
+
+        System.Windows.Controls.ComboBox? typeCombo = null;
+        if (fixedType is null)
+        {
+            panel.Children.Add(new TextBlock { Text = "Type", Foreground = B("Muted", "#9A9A9A"), FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
+            typeCombo = new System.Windows.Controls.ComboBox { Margin = new Thickness(0, 0, 0, 10) };
+            foreach (var t in new[] { "Bug", "Idea", "Other" }) typeCombo.Items.Add(t);
+            typeCombo.SelectedIndex = 0;
+            panel.Children.Add(typeCombo);
+        }
+
+        panel.Children.Add(new TextBlock { Text = prompt ?? "Your message", Foreground = B("Muted", "#9A9A9A"), FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
+        var msgBox = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 110, VerticalContentAlignment = VerticalAlignment.Top, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 0, 0, 10) };
+        panel.Children.Add(msgBox);
+
+        panel.Children.Add(new TextBlock { Text = "Email or Discord (optional, for follow-up)", Foreground = B("Muted", "#9A9A9A"), FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
+        var contactBox = new TextBox { Margin = new Thickness(0, 0, 0, 10) };
+        panel.Children.Add(contactBox);
+
+        var status = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 0, 8) };
+        panel.Children.Add(status);
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var send = new Button { Content = "Send", Margin = new Thickness(0, 0, 8, 0) };
+        if (TryFindResource("Primary") is Style ps) send.Style = ps;
+        var close = new Button { Content = "Close", IsCancel = true };
+        if (TryFindResource("Ghost") is Style gs) close.Style = gs;
+        close.Click += (_, _) => win.Close();
+        send.Click += async (_, _) =>
+        {
+            var msg = msgBox.Text.Trim();
+            if (msg.Length == 0) { status.Text = "Please enter a message."; status.Foreground = B("Danger", "#E06C6C"); status.Visibility = Visibility.Visible; return; }
+            send.IsEnabled = false;
+            status.Text = "Sending…"; status.Foreground = B("Muted", "#9A9A9A"); status.Visibility = Visibility.Visible;
+            var type = fixedType ?? (typeCombo?.SelectedItem as string ?? "Other");
+            var ok = await _vm.SendFeedbackAsync(type, msg, contactBox.Text.Trim());
+            if (ok) { status.Text = "Thanks! We got it. 🙌"; status.Foreground = B("Good", "#5BBF73"); send.Content = "Sent"; }
+            else { status.Text = "Couldn't send — check your connection and try again."; status.Foreground = B("Danger", "#E06C6C"); send.IsEnabled = true; }
+        };
+        row.Children.Add(send); row.Children.Add(close);
+        panel.Children.Add(row);
+
+        win.Content = panel;
+        win.ShowDialog();
+    }
+
     private void ShowLicenseDialog()
     {
         Brush B(string key, string fallback) =>
@@ -579,6 +644,13 @@ public partial class MainWindow : Window
                 if (_vm.IsPro) win.Close();   // unlocked — close; header shows the PRO badge
             };
             panel.Children.Add(activate);
+
+            // Upgrade-intent capture: let undecided users tell us what's missing.
+            var upsell = new TextBlock { Margin = new Thickness(0, 14, 0, 0) };
+            var upLink = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run("Not ready? Tell us what would make Pro worth it →")) { Foreground = B("Muted", "#9A9A9A") };
+            upLink.Click += (_, _) => ShowFeedbackDialog("Upgrade", "What would make Pro worth it?", "What's missing, or what would make you upgrade? (optional contact below for a reply)");
+            upsell.Inlines.Add(upLink);
+            panel.Children.Add(upsell);
         }
         else
         {
@@ -605,6 +677,9 @@ public partial class MainWindow : Window
                     status.Text = msg; status.Visibility = Visibility.Visible;
                     status.Foreground = B("Text", "#E6E6E6");
                     cancel.IsEnabled = true;
+                    // Churn insight: ask why (optional) right at the moment of cancellation.
+                    if (msg.Contains("cancelled", StringComparison.OrdinalIgnoreCase))
+                        ShowFeedbackDialog("Cancellation", "Sorry to see you go — mind sharing why?", "What led you to cancel? (optional)");
                 };
                 subRow.Children.Add(manage); subRow.Children.Add(cancel);
                 panel.Children.Add(subRow);
