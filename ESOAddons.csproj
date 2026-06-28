@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>EsoAddons</RootNamespace>
     <AssemblyName>Shoyru Addon Suite</AssemblyName>
-    <Version>0.4.2</Version>
+    <Version>0.4.3</Version>
     <ApplicationIcon>appicon.ico</ApplicationIcon>
     <!-- Velopack needs to run before WPF spins up, so we provide our own Main (App.Main). -->
     <StartupObject>EsoAddons.App</StartupObject>
