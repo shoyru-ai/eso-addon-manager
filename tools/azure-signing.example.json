@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy this to tools/azure-signing.json (git-ignored) and fill in your Azure Artifact Signing values. Endpoint = the region URI for your signing account; CodeSigningAccountName = the account name; CertificateProfileName = your Public Trust profile name. Requires `az login` with the 'Trusted Signing Certificate Profile Signer' role.",
+  "Endpoint": "https://eus.codesigning.azure.net",
+  "CodeSigningAccountName": "ShoyruSigning",
+  "CertificateProfileName": "ShoyruAddonSuite"
+}

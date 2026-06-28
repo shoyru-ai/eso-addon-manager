@@ -42,8 +42,20 @@ $notesFile = Join-Path $root "release-notes.md"
 $Notes | Out-File -Encoding utf8 $notesFile
 
 Write-Host "Packing (channel=$channel) ..." -ForegroundColor Cyan
-vpk pack -u $packId -v $Version -p $pub -e $mainExe -o $rel -c $channel `
-    --packTitle "Shoyru Addon Suite" --packAuthors "Shoyru" --releaseNotes $notesFile --icon $icon
+$packArgs = @("pack", "-u", $packId, "-v", $Version, "-p", $pub, "-e", $mainExe, "-o", $rel, "-c", $channel,
+    "--packTitle", "Shoyru Addon Suite", "--packAuthors", "Shoyru", "--releaseNotes", $notesFile, "--icon", $icon)
+
+# Code signing via Azure Artifact (Trusted) Signing — only if the metadata file exists (git-ignored).
+# Requires `az login` on this machine with the Certificate Profile Signer role. See tools/azure-signing.example.json.
+$signFile = Join-Path $root "tools\azure-signing.json"
+if (Test-Path $signFile) {
+    Write-Host "Code signing ENABLED (Azure Artifact Signing)" -ForegroundColor Green
+    $packArgs += @("--azureTrustedSignFile", $signFile)
+} else {
+    Write-Host "Code signing DISABLED (no tools/azure-signing.json) — build will be unsigned." -ForegroundColor Yellow
+}
+
+vpk @packArgs
 if ($LASTEXITCODE -ne 0) { throw "vpk pack failed ($LASTEXITCODE)" }
 
 if ($PackOnly) {
