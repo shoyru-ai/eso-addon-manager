@@ -339,6 +339,8 @@ public class MainViewModel : ObservableObject
     private string _detailImageUrl = "";
     public string DetailImageUrl { get => _detailImageUrl; set { if (SetProperty(ref _detailImageUrl, value)) OnPropertyChanged(nameof(HasDetailImage)); } }
     public bool HasDetailImage => !string.IsNullOrEmpty(DetailImageUrl);
+    /// <summary>All full-size screenshots for the addon on show — the enlarge viewer cycles these.</summary>
+    public List<string> DetailImageUrls { get; private set; } = new();
     private string _detailDescription = "";
     public string DetailDescription { get => _detailDescription; set => SetProperty(ref _detailDescription, value); }
     private string _detailChangeLog = "";
@@ -465,6 +467,7 @@ public class MainViewModel : ObservableObject
                 a.EsouiCategory = _categoryTitlesById.TryGetValue(match.CategoryId, out var ct) ? ct : "";
                 a.ThumbUrl = match.ThumbUrl;
                 a.ImageUrl = match.ImageUrl;
+                a.ImageUrls = match.ImageUrls;
                 if (match.IsLibrary) a.IsLibrary = true;
                 var recorded = _state.Get(a.FolderName);
                 if (recorded is not null) a.RecordedVersion = recorded;
@@ -645,6 +648,7 @@ public class MainViewModel : ObservableObject
             ? $"Installed v{a.Version}  ·  latest v{a.LatestVersion}  ·  by {a.Author}"
             : $"Installed v{a.Version}  ·  by {a.Author}  ·  (not on ESOUI)";
         DetailImageUrl = !string.IsNullOrWhiteSpace(a.ImageUrl) ? a.ImageUrl : a.ThumbUrl;
+        DetailImageUrls = a.ImageUrls;
         DetailDescription = a.Description;
         DetailChangeLog = "";
         DetailPageUrl = "";
@@ -687,6 +691,7 @@ public class MainViewModel : ObservableObject
         DetailTitle = a.Title;
         DetailMeta = $"v{a.Version}  ·  {a.DownloadsDisplay} downloads  ·  updated {a.LastUpdated}  ·  by {a.Author}";
         DetailImageUrl = !string.IsNullOrWhiteSpace(a.ImageUrl) ? a.ImageUrl : a.ThumbUrl;
+        DetailImageUrls = a.ImageUrls;
         DetailPageUrl = a.FileInfoUri;
         DetailDescription = "Loading description…";
         DetailChangeLog = "";
@@ -713,6 +718,7 @@ public class MainViewModel : ObservableObject
         DetailTitle = p.Title;
         DetailMeta = p.StatusLabel;
         DetailImageUrl = "";
+        DetailImageUrls = new();
         DetailDescription = string.IsNullOrWhiteSpace(p.Description) ? "(no description provided)" : p.Description;
         DetailChangeLog = "";
         DetailPageUrl = "";

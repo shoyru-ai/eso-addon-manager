@@ -19,6 +19,8 @@ public class EsouiAddon : ObservableObject
     /// <summary>Full-size first screenshot (UIIMGs) — used for the detail pane + the click-to-enlarge viewer.
     /// ThumbUrl is the tiny version used in list rows.</summary>
     public string ImageUrl { get; init; } = "";
+    /// <summary>All full-size screenshots (UIIMGs) — the enlarge viewer cycles through these.</summary>
+    public List<string> ImageUrls { get; init; } = new();
     /// <summary>True if this is in the ESOUI "Libraries" category (id 53).</summary>
     public bool IsLibrary { get; init; }
 

@@ -324,33 +324,58 @@ public partial class MainWindow : Window
     // ==================== Full-size image viewer ====================
 
     private void DetailImage_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        => ShowImageViewer(_vm.DetailImageUrl);
-
-    /// <summary>Opens the addon image at full size (downscaled to fit the screen, never upscaled) in a
-    /// dismissable viewer — so users can actually see the addon's screenshots.</summary>
-    private void ShowImageViewer(string url)
     {
-        if (string.IsNullOrWhiteSpace(url)) return;
+        var urls = _vm.DetailImageUrls;
+        if (urls.Count == 0 && !string.IsNullOrWhiteSpace(_vm.DetailImageUrl))
+            urls = new List<string> { _vm.DetailImageUrl };
+        ShowImageViewer(urls);
+    }
+
+    /// <summary>Opens the addon's screenshots full-size in a viewer. With more than one image, ‹ › buttons
+    /// and the Left/Right arrow keys cycle through them (wrapping); Esc closes.</summary>
+    private void ShowImageViewer(IReadOnlyList<string> urls)
+    {
+        if (urls is null || urls.Count == 0) return;
         Brush B(string key, string fallback) =>
             TryFindResource(key) as Brush ?? (Brush)new BrushConverter().ConvertFromString(fallback)!;
 
         var img = new System.Windows.Controls.Image
         {
-            Stretch = System.Windows.Media.Stretch.Uniform,   // scale to fill the viewer (up or down), keep aspect
-            Margin = new Thickness(16),
+            Stretch = System.Windows.Media.Stretch.Uniform,   // scale to fill the viewer, keep aspect
+            Margin = new Thickness(16, 16, 16, 44),
         };
-        Behaviors.ImageLoader.SetSourceUrl(img, url);
-
-        var hint = new TextBlock
+        var counter = new TextBlock
         {
-            Text = "Click anywhere or press Esc to close", Foreground = B("Muted", "#9A9A9A"),
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom,
-            Margin = new Thickness(0, 0, 0, 8), FontSize = 12,
+            Foreground = B("Muted", "#9A9A9A"), HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 12), FontSize = 13,
         };
+
+        int index = 0;
+        void Show(int i)
+        {
+            index = (i % urls.Count + urls.Count) % urls.Count;   // wrap both directions
+            Behaviors.ImageLoader.SetSourceUrl(img, urls[index]);
+            counter.Text = urls.Count > 1 ? $"{index + 1} / {urls.Count}    (← →)" : "";
+        }
+
+        Button Chevron(string glyph) => new()
+        {
+            Content = glyph, FontSize = 30, Width = 52, Height = 84, Cursor = System.Windows.Input.Cursors.Hand,
+            Foreground = B("Text", "#E6E6E6"), Background = B("PanelAlt", "#222227"), BorderThickness = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Center, Opacity = 0.85,
+        };
+        var prev = Chevron("‹"); prev.HorizontalAlignment = HorizontalAlignment.Left; prev.Margin = new Thickness(8, 0, 0, 0);
+        var next = Chevron("›"); next.HorizontalAlignment = HorizontalAlignment.Right; next.Margin = new Thickness(0, 0, 8, 0);
+        prev.Click += (_, _) => Show(index - 1);
+        next.Click += (_, _) => Show(index + 1);
+        var multi = urls.Count > 1;
+        prev.Visibility = next.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
 
         var root = new Grid { Background = B("Bg", "#1E1E1E") };
         root.Children.Add(img);
-        root.Children.Add(hint);
+        root.Children.Add(prev);
+        root.Children.Add(next);
+        root.Children.Add(counter);
 
         var wa = SystemParameters.WorkArea;
         var win = new Window
@@ -365,8 +390,13 @@ public partial class MainWindow : Window
             ShowInTaskbar = false,
             Content = root,
         };
-        win.MouseLeftButtonUp += (_, _) => win.Close();
-        win.KeyDown += (_, _) => win.Close();
+        win.KeyDown += (_, e) =>
+        {
+            if (e.Key == System.Windows.Input.Key.Left) Show(index - 1);
+            else if (e.Key == System.Windows.Input.Key.Right) Show(index + 1);
+            else if (e.Key == System.Windows.Input.Key.Escape) win.Close();
+        };
+        Show(0);
         win.ShowDialog();
     }
 

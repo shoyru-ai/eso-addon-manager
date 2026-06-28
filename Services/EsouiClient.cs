@@ -46,6 +46,7 @@ public partial class EsouiClient
                 Dirs = Dirs(e, "UIDir"),
                 ThumbUrl = FirstImage(e, "UIIMG_Thumbs"),
                 ImageUrl = FirstImage(e, "UIIMGs"),
+                ImageUrls = AllImages(e, "UIIMGs"),
                 IsLibrary = Str(e, "UICATID") == LibraryCategoryId,
             });
         }
@@ -102,6 +103,16 @@ public partial class EsouiClient
             foreach (var x in v.EnumerateArray())
                 if (x.ValueKind == JsonValueKind.String && x.GetString() is { Length: > 0 } s) return s;
         return "";
+    }
+
+    /// <summary>All string image URLs in the given array field (e.g. every UIIMGs screenshot).</summary>
+    private static List<string> AllImages(JsonElement e, string name)
+    {
+        var list = new List<string>();
+        if (e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Array)
+            foreach (var x in v.EnumerateArray())
+                if (x.ValueKind == JsonValueKind.String && x.GetString() is { Length: > 0 } s) list.Add(s);
+        return list;
     }
 
     public async Task<byte[]> DownloadAsync(string url) => await _http.GetByteArrayAsync(url);
