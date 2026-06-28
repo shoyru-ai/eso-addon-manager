@@ -45,14 +45,14 @@ Write-Host "Packing (channel=$channel) ..." -ForegroundColor Cyan
 $packArgs = @("pack", "-u", $packId, "-v", $Version, "-p", $pub, "-e", $mainExe, "-o", $rel, "-c", $channel,
     "--packTitle", "Shoyru Addon Suite", "--packAuthors", "Shoyru", "--releaseNotes", $notesFile, "--icon", $icon)
 
-# Code signing via Azure Artifact (Trusted) Signing — only if the metadata file exists (git-ignored).
-# Requires `az login` on this machine with the Certificate Profile Signer role. See tools/azure-signing.example.json.
+# Code signing via Azure Artifact (Trusted) Signing - only when the metadata file exists (git-ignored).
+# Requires az login on this machine with the Certificate Profile Signer role. See azure-signing.example.json.
 $signFile = Join-Path $root "tools\azure-signing.json"
 if (Test-Path $signFile) {
     Write-Host "Code signing ENABLED (Azure Artifact Signing)" -ForegroundColor Green
     $packArgs += @("--azureTrustedSignFile", $signFile)
 } else {
-    Write-Host "Code signing DISABLED (no tools/azure-signing.json) — build will be unsigned." -ForegroundColor Yellow
+    Write-Host "Code signing DISABLED (no tools/azure-signing.json) - build will be unsigned." -ForegroundColor Yellow
 }
 
 vpk @packArgs
