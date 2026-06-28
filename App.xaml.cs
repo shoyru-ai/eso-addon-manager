@@ -1,48 +1,38 @@
 using System.Linq;
-using System.Threading.Tasks;
 using System.Windows;
 using EsoAddons.Services;
+using Velopack;
 
 namespace EsoAddons;
 
 public partial class App : Application
 {
+    /// <summary>Custom entry point. Velopack must run FIRST — it handles the install / update / uninstall
+    /// hooks (and exits early during those) before any WPF UI is created.</summary>
+    [STAThread]
+    public static void Main()
+    {
+        VelopackApp.Build().Run();
+
+        var app = new App();
+        app.InitializeComponent();   // loads Application.Resources (theme, styles, converters)
+        app.Run();
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
-        // PPE/staging channel: also receive pre-release builds. Persists across self-updates
-        // because the updater re-passes launch args.
-        var ppe = e.Args.Any(a => a.Equals("--ppe", StringComparison.OrdinalIgnoreCase));
+        // With a custom Main, StartupEventArgs.Args isn't populated — read the real command line.
+        var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
 
-        // Headless self-update mode (used for testing + a silent-update entry point):
-        //   "Shoyru Addon Suite.exe" --selfupdate
-        if (e.Args.Contains("--selfupdate"))
-        {
-            _ = RunSelfUpdateAsync(ppe);
-            return;
-        }
+        // PPE/staging channel: receive pre-release builds. Persists across updates (Velopack relaunches
+        // with the original args).
+        var ppe = args.Any(a => a.Equals("--ppe", StringComparison.OrdinalIgnoreCase));
 
-        // Optional folder override (used to give the sandbox a clean, junction-free AddOns folder):
-        //   "Shoyru Addon Suite.exe" --addons "C:\path\to\AddOns"
-        var addonsOverride = CliArgs.GetOption(e.Args, "--addons");
+        // Optional folder override (e.g. a clean sandbox AddOns folder for testing).
+        var addonsOverride = CliArgs.GetOption(args, "--addons");
+
         new MainWindow(addonsOverride, ppe).Show();
-    }
-
-    private async Task RunSelfUpdateAsync(bool ppe = false)
-    {
-        try
-        {
-            Diag.Log($"--selfupdate: current={UpdateChecker.CurrentVersion} ppe={ppe}");
-            var info = await new UpdateChecker(ppe).CheckAsync();
-            Diag.Log($"--selfupdate: available={info?.IsNewer} latest={info?.Version} exe={info?.ExeUrl}");
-            if (info is { IsNewer: true } && info.ExeUrl.Length > 0)
-            {
-                var ok = await AppUpdater.DownloadAndApplyAsync(info.ExeUrl);
-                Diag.Log($"--selfupdate: apply ok={ok}");
-            }
-        }
-        catch (System.Exception ex) { Diag.Log("--selfupdate threw: " + ex); }
-        finally { Shutdown(); }
     }
 }

@@ -1,5 +1,8 @@
 bin/
 obj/
 dist/
+publish/
+releases/
+release-notes.md
 *.user
 .vs/

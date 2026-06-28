@@ -27,7 +27,8 @@ public partial class MainWindow : Window
         };
         Loaded += async (_, _) =>
         {
-            Diag.Log($"Loaded fired. version={UpdateChecker.CurrentVersion} autoupdate_env={Environment.GetEnvironmentVariable("ESOADDONS_AUTOUPDATE")}");
+            Diag.Log($"Loaded fired. version={UpdateChecker.CurrentVersion}");
+            if (!EnsureTermsAccepted()) { Application.Current.Shutdown(); return; }   // must accept to use
             await _vm.LoadAsync();
             Diag.Log("LoadAsync done. checking license…");
             await _vm.CheckLicenseAsync();
@@ -36,13 +37,7 @@ public partial class MainWindow : Window
             MaybeShowOnboarding();
             await _vm.AutoUpdateOnLaunchAsync();   // Pro: silently update addons if the user opted in
             await _vm.CheckForAppUpdateAsync();
-            Diag.Log($"update check done. available={_vm.AppUpdateAvailable} latest={_vm.AppUpdateVersion} exeUrl={_vm.AppUpdateExeUrl}");
-            // Test/headless hook: auto-apply an available update when ESOADDONS_AUTOUPDATE=1.
-            if (_vm.AppUpdateAvailable && Environment.GetEnvironmentVariable("ESOADDONS_AUTOUPDATE") == "1")
-            {
-                Diag.Log("auto-update hook firing…");
-                await ApplyAppUpdateAsync();
-            }
+            Diag.Log($"update check done. available={_vm.AppUpdateAvailable} latest={_vm.AppUpdateVersion}");
         };
     }
 
@@ -57,7 +52,7 @@ public partial class MainWindow : Window
             _vm.SetAddonsPath(dialog.FolderName);
     }
 
-    private async void UpdateNow_Click(object sender, RoutedEventArgs e) => await ApplyAppUpdateAsync();
+    private async void UpdateNow_Click(object sender, RoutedEventArgs e) => await _vm.DownloadAndApplyUpdateAsync();
 
     private void WhatsNew_Click(object sender, RoutedEventArgs e) => ShowWhatsNew();
 
@@ -319,6 +314,73 @@ public partial class MainWindow : Window
 
         win.Content = grid;
         win.ShowDialog();
+    }
+
+    // ==================== Terms & Conditions gate ====================
+
+    /// <summary>Returns true if the current Terms are (or get) accepted; false if the user declines.</summary>
+    private bool EnsureTermsAccepted()
+    {
+        if (_vm.AcceptedTermsVersion >= Services.Terms.CurrentVersion) return true;
+        if (!ShowTermsDialog()) return false;
+        _vm.AcceptedTermsVersion = Services.Terms.CurrentVersion;
+        return true;
+    }
+
+    private bool ShowTermsDialog()
+    {
+        Brush B(string key, string fallback) =>
+            TryFindResource(key) as Brush ?? (Brush)new BrushConverter().ConvertFromString(fallback)!;
+
+        var win = new Window
+        {
+            Title = "Shoyru Addon Suite — Terms & Conditions",
+            Width = 580, Height = 620, Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = B("Bg", "#1E1E1E"), FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
+            ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
+        };
+
+        var grid = new Grid { Margin = new Thickness(18) };
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var header = new TextBlock
+        {
+            Text = "Before you start — please review", Foreground = B("Text", "#E6E6E6"),
+            FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 10),
+        };
+        Grid.SetRow(header, 0); grid.Children.Add(header);
+
+        var scroller = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = new Border
+            {
+                Background = B("Panel", "#252526"), BorderBrush = B("Border", "#3A3A3A"), BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6), Padding = new Thickness(14),
+                Child = new TextBlock
+                {
+                    Text = Services.Terms.Text, Foreground = B("Text", "#E6E6E6"),
+                    TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Left, FontSize = 13, LineHeight = 19,
+                },
+            },
+        };
+        Grid.SetRow(scroller, 1); grid.Children.Add(scroller);
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+        var decline = new Button { Content = "Decline & Exit", Margin = new Thickness(0, 0, 8, 0) };
+        if (TryFindResource("Ghost") is Style gs) decline.Style = gs;
+        decline.Click += (_, _) => { win.DialogResult = false; };
+        var agree = new Button { Content = "I Agree" };
+        if (TryFindResource("Primary") is Style ps) agree.Style = ps;
+        agree.Click += (_, _) => { win.DialogResult = true; };
+        buttons.Children.Add(decline); buttons.Children.Add(agree);
+        Grid.SetRow(buttons, 2); grid.Children.Add(buttons);
+
+        win.Content = grid;
+        return win.ShowDialog() == true;   // X / close = not accepted
     }
 
     // ==================== Full-size image viewer ====================
@@ -729,7 +791,7 @@ public partial class MainWindow : Window
         };
         var updateBtn = new Button { Content = "Update now", Margin = new Thickness(0, 0, 8, 0) };
         if (TryFindResource("Update") is Style us) updateBtn.Style = us;
-        updateBtn.Click += async (_, _) => { win.Close(); await ApplyAppUpdateAsync(); };
+        updateBtn.Click += async (_, _) => { win.Close(); await _vm.DownloadAndApplyUpdateAsync(); };
         var closeBtn = new Button { Content = "Close", IsCancel = true, IsDefault = true };
         if (TryFindResource("Ghost") is Style gs) closeBtn.Style = gs;
         closeBtn.Click += (_, _) => win.Close();
@@ -789,21 +851,6 @@ public partial class MainWindow : Window
             panel.Children.Add(tb);
         }
         return panel;
-    }
-
-    private async System.Threading.Tasks.Task ApplyAppUpdateAsync()
-    {
-        var url = _vm.AppUpdateExeUrl;
-        Diag.Log($"ApplyAppUpdateAsync url={url}");
-        if (string.IsNullOrEmpty(url)) { OpenUrl(_vm.AppUpdateReleaseUrl); return; }
-
-        _vm.Status = $"Updating to v{_vm.AppUpdateVersion}… the app will restart automatically.";
-        bool ok;
-        try { ok = await AppUpdater.DownloadAndApplyAsync(url); }
-        catch (Exception ex) { Diag.Log("AppUpdater threw: " + ex); ok = false; }
-        Diag.Log($"DownloadAndApplyAsync returned {ok}");
-        if (ok) Application.Current.Shutdown();
-        else { _vm.Status = "Auto-update failed — opening the download page."; OpenUrl(_vm.AppUpdateReleaseUrl); }
     }
 
     private static void OpenUrl(string url)

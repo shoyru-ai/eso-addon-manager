@@ -32,6 +32,10 @@ public class AppSettings
     /// <summary>The app version last launched, so after an update we can offer a "what's new" tour of
     /// only the features added since. Empty = never recorded.</summary>
     public string LastSeenVersion { get; set; } = "";
+
+    /// <summary>Highest Terms version the user has accepted (0 = never). Below the app's current Terms
+    /// version, the acceptance gate is shown on launch.</summary>
+    public int AcceptedTermsVersion { get; set; } = 0;
 }
 
 public class SettingsStore

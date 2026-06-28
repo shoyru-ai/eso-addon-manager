@@ -32,6 +32,7 @@ public class MainViewModel : ObservableObject
     private HashSet<string> _availableAddonNames = new(StringComparer.OrdinalIgnoreCase);
 
     private readonly bool _ppeChannel;
+    private readonly AppUpdateService _appUpdate;
 
     /// <summary>Running app version (from the assembly), e.g. "v0.2.1" — shown in the header.
     /// Tagged [PPE] when on the staging/pre-release channel so it's obvious which channel you're testing.</summary>
@@ -165,6 +166,7 @@ public class MainViewModel : ObservableObject
     public MainViewModel(string? addonsOverride = null, bool ppeChannel = false)
     {
         _ppeChannel = ppeChannel;
+        _appUpdate = new AppUpdateService(ppeChannel);
         _installer = new AddonInstaller(_client);
         _settings = _settingsStore.Load();
         ThemeManager.Apply(_settings.Theme);   // apply saved theme before the UI renders
@@ -210,27 +212,54 @@ public class MainViewModel : ObservableObject
     private bool _addonsFolderFound = true;
     public bool AddonsFolderFound { get => _addonsFolderFound; set => SetProperty(ref _addonsFolderFound, value); }
 
-    // ---- app self-update ----
+    // ---- app self-update (Velopack) ----
     private bool _appUpdateAvailable;
     public bool AppUpdateAvailable { get => _appUpdateAvailable; set => SetProperty(ref _appUpdateAvailable, value); }
     private string _appUpdateVersion = "";
     public string AppUpdateVersion { get => _appUpdateVersion; set => SetProperty(ref _appUpdateVersion, value); }
     public string AppUpdateNotes { get; private set; } = "";
-    public string AppUpdateExeUrl { get; private set; } = "";
-    public string AppUpdateReleaseUrl { get; private set; } = "";
 
-    /// <summary>Checks GitHub Releases; if a newer app version exists, surfaces the update banner.</summary>
+    private bool _isUpdating;
+    /// <summary>True while the update is downloading (shows the progress bar, hides the buttons).</summary>
+    public bool IsUpdating { get => _isUpdating; set => SetProperty(ref _isUpdating, value); }
+    private int _updateProgress;
+    /// <summary>Download progress 0-100 for the update banner's progress bar.</summary>
+    public int UpdateProgress { get => _updateProgress; set => SetProperty(ref _updateProgress, value); }
+
+    /// <summary>Checks GitHub Releases via Velopack; if a newer build exists, surfaces the update banner.
+    /// No-op in dev / portable builds (only installed copies can self-update).</summary>
     public async Task CheckForAppUpdateAsync()
     {
-        var info = await new UpdateChecker(_ppeChannel).CheckAsync();
-        if (info is { IsNewer: true })
+        try
         {
-            AppUpdateExeUrl = info.ExeUrl;
-            AppUpdateReleaseUrl = info.ReleaseUrl;
+            var info = await _appUpdate.CheckAsync();
+            if (info is null) return;
             AppUpdateNotes = info.Notes;
             AppUpdateVersion = info.Version;
             AppUpdateAvailable = true;
             Status = $"A new version (v{info.Version}) is available.";
+        }
+        catch (Exception ex) { Diag.Log("update check failed: " + ex.Message); }
+    }
+
+    /// <summary>Downloads the pending update (showing progress) then applies it and restarts.</summary>
+    public async Task DownloadAndApplyUpdateAsync()
+    {
+        if (!AppUpdateAvailable || IsUpdating) return;
+        IsUpdating = true;
+        UpdateProgress = 0;
+        Status = $"Downloading v{AppUpdateVersion}…";
+        try
+        {
+            await _appUpdate.DownloadAsync(p =>
+                System.Windows.Application.Current?.Dispatcher.Invoke(() => UpdateProgress = p));
+            Status = "Restarting to apply the update…";
+            _appUpdate.ApplyAndRestart();   // exits the process and relaunches the new version
+        }
+        catch (Exception ex)
+        {
+            IsUpdating = false;
+            Status = "Update failed: " + ex.Message;
         }
     }
 
@@ -967,6 +996,13 @@ public class MainViewModel : ObservableObject
     {
         get => _settings.LastSeenVersion;
         set { if (value != _settings.LastSeenVersion) { _settings.LastSeenVersion = value; _settingsStore.Save(_settings); } }
+    }
+
+    /// <summary>Highest Terms version accepted on this machine (gates the first-run acceptance dialog).</summary>
+    public int AcceptedTermsVersion
+    {
+        get => _settings.AcceptedTermsVersion;
+        set { if (value != _settings.AcceptedTermsVersion) { _settings.AcceptedTermsVersion = value; _settingsStore.Save(_settings); } }
     }
 
     /// <summary>Pro: update all out-of-date addons automatically when the app starts.</summary>
