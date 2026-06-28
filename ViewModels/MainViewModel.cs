@@ -464,6 +464,7 @@ public class MainViewModel : ObservableObject
                 a.LastUpdateMs = match.LastUpdateMs;
                 a.EsouiCategory = _categoryTitlesById.TryGetValue(match.CategoryId, out var ct) ? ct : "";
                 a.ThumbUrl = match.ThumbUrl;
+                a.ImageUrl = match.ImageUrl;
                 if (match.IsLibrary) a.IsLibrary = true;
                 var recorded = _state.Get(a.FolderName);
                 if (recorded is not null) a.RecordedVersion = recorded;
@@ -643,7 +644,7 @@ public class MainViewModel : ObservableObject
         DetailMeta = a.Managed
             ? $"Installed v{a.Version}  ·  latest v{a.LatestVersion}  ·  by {a.Author}"
             : $"Installed v{a.Version}  ·  by {a.Author}  ·  (not on ESOUI)";
-        DetailImageUrl = a.ThumbUrl;
+        DetailImageUrl = !string.IsNullOrWhiteSpace(a.ImageUrl) ? a.ImageUrl : a.ThumbUrl;
         DetailDescription = a.Description;
         DetailChangeLog = "";
         DetailPageUrl = "";
@@ -685,7 +686,7 @@ public class MainViewModel : ObservableObject
         DetailInstallTarget = a;
         DetailTitle = a.Title;
         DetailMeta = $"v{a.Version}  ·  {a.DownloadsDisplay} downloads  ·  updated {a.LastUpdated}  ·  by {a.Author}";
-        DetailImageUrl = a.ThumbUrl;
+        DetailImageUrl = !string.IsNullOrWhiteSpace(a.ImageUrl) ? a.ImageUrl : a.ThumbUrl;
         DetailPageUrl = a.FileInfoUri;
         DetailDescription = "Loading description…";
         DetailChangeLog = "";

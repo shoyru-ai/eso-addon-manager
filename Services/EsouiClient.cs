@@ -45,6 +45,7 @@ public partial class EsouiClient
                 CategoryId = Str(e, "UICATID"),
                 Dirs = Dirs(e, "UIDir"),
                 ThumbUrl = FirstImage(e, "UIIMG_Thumbs"),
+                ImageUrl = FirstImage(e, "UIIMGs"),
                 IsLibrary = Str(e, "UICATID") == LibraryCategoryId,
             });
         }

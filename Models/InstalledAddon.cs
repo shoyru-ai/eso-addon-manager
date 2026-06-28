@@ -21,6 +21,10 @@ public class InstalledAddon : ObservableObject
     private string _thumbUrl = "";
     public string ThumbUrl { get => _thumbUrl; set => SetProperty(ref _thumbUrl, value); }
 
+    /// <summary>Full-size first screenshot (from the catalog) for the detail pane + enlarge viewer.</summary>
+    private string _imageUrl = "";
+    public string ImageUrl { get => _imageUrl; set => SetProperty(ref _imageUrl, value); }
+
     /// <summary>Pro: the user's manual category override (empty = fall back to the ESOUI category).</summary>
     private string _userCategory = "";
     public string UserCategory { get => _userCategory; set { if (SetProperty(ref _userCategory, value)) OnPropertyChanged(nameof(Category)); } }

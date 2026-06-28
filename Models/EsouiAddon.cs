@@ -16,6 +16,9 @@ public class EsouiAddon : ObservableObject
     /// <summary>Folder names this addon installs (from UIDir) — used to match installed addons.</summary>
     public List<string> Dirs { get; init; } = new();
     public string ThumbUrl { get; init; } = "";
+    /// <summary>Full-size first screenshot (UIIMGs) — used for the detail pane + the click-to-enlarge viewer.
+    /// ThumbUrl is the tiny version used in list rows.</summary>
+    public string ImageUrl { get; init; } = "";
     /// <summary>True if this is in the ESOUI "Libraries" category (id 53).</summary>
     public bool IsLibrary { get; init; }
 
