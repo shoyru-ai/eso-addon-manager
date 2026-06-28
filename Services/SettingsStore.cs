@@ -22,6 +22,10 @@ public class AppSettings
     /// <summary>Pro: user-assigned category per installed addon, keyed by folder name. Lets the
     /// Installed tab group addons into custom buckets. Persisted across sessions.</summary>
     public Dictionary<string, string> InstalledCategories { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Set once the first-run walkthrough has been shown, so it doesn't auto-open again
+    /// (a fresh install has no settings file, so it shows again there).</summary>
+    public bool WalkthroughSeen { get; set; } = false;
 }
 
 public class SettingsStore

@@ -948,6 +948,13 @@ public class MainViewModel : ObservableObject
 
     // ==================== Pro: auto-update on launch ====================
 
+    /// <summary>Whether the first-run walkthrough has already been shown on this machine.</summary>
+    public bool WalkthroughSeen
+    {
+        get => _settings.WalkthroughSeen;
+        set { if (value != _settings.WalkthroughSeen) { _settings.WalkthroughSeen = value; _settingsStore.Save(_settings); } }
+    }
+
     /// <summary>Pro: update all out-of-date addons automatically when the app starts.</summary>
     public bool AutoUpdateOnLaunch
     {

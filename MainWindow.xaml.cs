@@ -33,6 +33,7 @@ public partial class MainWindow : Window
                 Diag.Log("auto-update hook firing…");
                 await ApplyAppUpdateAsync();
             }
+            if (!_vm.WalkthroughSeen) StartWalkthrough();   // first run only
         };
     }
 
@@ -76,6 +77,133 @@ public partial class MainWindow : Window
     {
         if (_vm.SelectedInstalled is { } a) _vm.SetCategory(a, CategoryCombo.Text ?? "");
     }
+
+    // ==================== First-run walkthrough (spotlight + card) ====================
+
+    private sealed record WalkStep(int? Tab, Func<FrameworkElement?> Target, string Title, string Body);
+    private List<WalkStep>? _walk;
+    private int _walkIndex;
+
+    private List<WalkStep> BuildWalk()
+    {
+        // The Pro step adapts to the user's tier: free users see "Get Pro" highlighted, Pro users see "Pro Tools".
+        FrameworkElement proTarget = _vm.IsPro ? ProToolsButton : GetProButton;
+        var proTitle = _vm.IsPro ? "Pro Tools" : "Unlock more with Pro";
+        var proBody = _vm.IsPro
+            ? "Pro Tools holds your profiles / loadouts, backups, and multi-PC sync — plus auto-update-on-launch. Themes and addon categories are unlocked too."
+            : "Pro adds Update-All & auto-update-on-launch, dark / light themes, addon categories, and profiles, backups & multi-PC sync. Your addons are always free — Pro is just for the manager. Click “Get Pro” to see the full comparison.";
+
+        return new List<WalkStep>
+        {
+            new(null, () => null, "Welcome to Shoyru Addon Suite",
+                "The complete addon manager for ESO. This quick tour shows what you can do — in both the free and Pro versions. You can skip anytime."),
+            new(0, () => MainTabs, "Your installed addons",
+                "The Installed tab lists every addon you have. Search it, sort any column (including the “Released” date), see installed vs. latest versions, and remove addons. All free."),
+            new(1, () => MainTabs, "Browse all of ESOUI",
+                "Switch to Browse to search the entire ESOUI catalog and install any addon in one click — filter by category, sort by downloads or release date. Free."),
+            new(0, () => DetailPane, "Details & dependencies",
+                "Click any addon to see its description, what’s new, and its dependencies — with one-click “Get” for any missing library. Free."),
+            new(null, () => proTarget, proTitle, proBody),
+            new(null, () => null, "You’re all set!",
+                "That’s the tour. If your AddOns folder wasn’t auto-detected, use “Change folder…” up top — then browse and install. Replay this anytime with the “?” button."),
+        };
+    }
+
+    private void StartWalkthrough()
+    {
+        _walk = BuildWalk();
+        _walkIndex = 0;
+        _vm.WalkthroughSeen = true;   // mark immediately so it won't auto-open again
+        WalkthroughHost.Visibility = Visibility.Visible;
+        ShowWalkStep();
+    }
+
+    private void ShowWalkStep()
+    {
+        if (_walk is null) return;
+        var step = _walk[_walkIndex];
+        WalkStepCounter.Text = $"Step {_walkIndex + 1} of {_walk.Count}";
+        WalkTitle.Text = step.Title;
+        WalkBody.Text = step.Body;
+        WalkBack.Visibility = _walkIndex > 0 ? Visibility.Visible : Visibility.Collapsed;
+        WalkSkip.Visibility = _walkIndex == _walk.Count - 1 ? Visibility.Collapsed : Visibility.Visible;
+        WalkNext.Content = _walkIndex == _walk.Count - 1 ? "Done" : "Next ▶";
+
+        if (step.Tab is int t && MainTabs.SelectedIndex != t) MainTabs.SelectedIndex = t;
+
+        // Let the tab switch + layout settle, then place the spotlight over the target.
+        Dispatcher.BeginInvoke(new Action(() => PositionWalk(step)), System.Windows.Threading.DispatcherPriority.Loaded);
+    }
+
+    private void PositionWalk(WalkStep step)
+    {
+        double w = WalkthroughHost.ActualWidth, h = WalkthroughHost.ActualHeight;
+        var outer = new System.Windows.Media.RectangleGeometry(new Rect(0, 0, w, h));
+
+        var target = step.Target();
+        if (target is null || !target.IsVisible || target.ActualWidth < 1 || target.ActualHeight < 1)
+        {
+            // No target → full dim, centered card.
+            WalkDim.Data = outer;
+            WalkSpot.Visibility = Visibility.Collapsed;
+            WalkCard.HorizontalAlignment = HorizontalAlignment.Center;
+            WalkCard.VerticalAlignment = VerticalAlignment.Center;
+            WalkCard.Margin = new Thickness(0);
+            return;
+        }
+
+        var tl = target.TransformToVisual(WalkthroughHost).Transform(new Point(0, 0));
+        var rect = new Rect(tl.X, tl.Y, target.ActualWidth, target.ActualHeight);
+        rect.Inflate(6, 6);
+        rect.Intersect(new Rect(0, 0, w, h));
+
+        // Dim everything except a rounded hole over the target (even-odd fills the ring only).
+        var grp = new System.Windows.Media.GeometryGroup { FillRule = System.Windows.Media.FillRule.EvenOdd };
+        grp.Children.Add(outer);
+        grp.Children.Add(new System.Windows.Media.RectangleGeometry(rect, 8, 8));
+        WalkDim.Data = grp;
+
+        WalkSpot.Visibility = Visibility.Visible;
+        WalkSpot.Margin = new Thickness(rect.X, rect.Y, 0, 0);
+        WalkSpot.Width = rect.Width;
+        WalkSpot.Height = rect.Height;
+
+        // Card goes opposite the spotlight so it never covers it.
+        WalkCard.HorizontalAlignment = HorizontalAlignment.Center;
+        if (rect.Bottom < h / 2)
+        {
+            WalkCard.VerticalAlignment = VerticalAlignment.Top;
+            WalkCard.Margin = new Thickness(0, Math.Min(rect.Bottom + 18, Math.Max(18, h - 240)), 0, 0);
+        }
+        else
+        {
+            WalkCard.VerticalAlignment = VerticalAlignment.Bottom;
+            WalkCard.Margin = new Thickness(0, 0, 0, Math.Min(h - rect.Top + 18, Math.Max(18, h - 240)));
+        }
+    }
+
+    private void WalkNext_Click(object sender, RoutedEventArgs e)
+    {
+        if (_walk is null) return;
+        if (_walkIndex >= _walk.Count - 1) { EndWalkthrough(); return; }
+        _walkIndex++;
+        ShowWalkStep();
+    }
+
+    private void WalkBack_Click(object sender, RoutedEventArgs e)
+    {
+        if (_walkIndex > 0) { _walkIndex--; ShowWalkStep(); }
+    }
+
+    private void WalkSkip_Click(object sender, RoutedEventArgs e) => EndWalkthrough();
+
+    private void EndWalkthrough()
+    {
+        WalkthroughHost.Visibility = Visibility.Collapsed;
+        _walk = null;
+    }
+
+    private void ReplayWalkthrough_Click(object sender, RoutedEventArgs e) => StartWalkthrough();
 
     private void ShowLicenseDialog()
     {
