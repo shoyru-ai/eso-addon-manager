@@ -4,5 +4,6 @@ dist/
 publish/
 releases/
 release-notes.md
+tools/azure-signing.json
 *.user
 .vs/
