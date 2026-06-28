@@ -955,6 +955,13 @@ public class MainViewModel : ObservableObject
         set { if (value != _settings.WalkthroughSeen) { _settings.WalkthroughSeen = value; _settingsStore.Save(_settings); } }
     }
 
+    /// <summary>The app version last launched on this machine (for the post-update "what's new" tour).</summary>
+    public string LastSeenVersion
+    {
+        get => _settings.LastSeenVersion;
+        set { if (value != _settings.LastSeenVersion) { _settings.LastSeenVersion = value; _settingsStore.Save(_settings); } }
+    }
+
     /// <summary>Pro: update all out-of-date addons automatically when the app starts.</summary>
     public bool AutoUpdateOnLaunch
     {

@@ -26,6 +26,10 @@ public class AppSettings
     /// <summary>Set once the first-run walkthrough has been shown, so it doesn't auto-open again
     /// (a fresh install has no settings file, so it shows again there).</summary>
     public bool WalkthroughSeen { get; set; } = false;
+
+    /// <summary>The app version last launched, so after an update we can offer a "what's new" tour of
+    /// only the features added since. Empty = never recorded.</summary>
+    public string LastSeenVersion { get; set; } = "";
 }
 
 public class SettingsStore

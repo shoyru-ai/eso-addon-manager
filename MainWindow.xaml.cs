@@ -33,7 +33,7 @@ public partial class MainWindow : Window
                 Diag.Log("auto-update hook firing…");
                 await ApplyAppUpdateAsync();
             }
-            if (!_vm.WalkthroughSeen) StartWalkthrough();   // first run only
+            MaybeShowOnboarding();
         };
     }
 
@@ -111,11 +111,62 @@ public partial class MainWindow : Window
 
     private void StartWalkthrough()
     {
-        _walk = BuildWalk();
-        _walkIndex = 0;
         _vm.WalkthroughSeen = true;   // mark immediately so it won't auto-open again
+        StartTour(BuildWalk());
+    }
+
+    /// <summary>Runs any spotlight tour (the full first-run walkthrough, or a post-update "what's new" set).</summary>
+    private void StartTour(List<WalkStep> steps)
+    {
+        if (steps.Count == 0) return;
+        _walk = steps;
+        _walkIndex = 0;
         WalkthroughHost.Visibility = Visibility.Visible;
         ShowWalkStep();
+    }
+
+    /// <summary>First-run full walkthrough, or after an update a "what's new" tour of just the new features.
+    /// Stamps the current version so a given version's tour only shows once.</summary>
+    private void MaybeShowOnboarding()
+    {
+        var cur = UpdateChecker.CurrentVersion;
+        if (!_vm.WalkthroughSeen)
+        {
+            StartWalkthrough();   // brand-new user → full tour
+        }
+        else if (!string.IsNullOrEmpty(_vm.LastSeenVersion) && VersionCompare.IsNewer(cur, _vm.LastSeenVersion))
+        {
+            var items = WhatsNewSince(_vm.LastSeenVersion);
+            if (items.Count > 0) ShowWhatsNewDialog(cur, items);
+        }
+        _vm.LastSeenVersion = cur;   // remember this version on both paths
+    }
+
+    /// <summary>Curated registry of MEANINGFUL, workflow-affecting changes — one entry per spotlight-worthy
+    /// feature, tagged with the version it shipped. RULE: only add an entry for a genuinely new button /
+    /// feature / piece of functionality. Text tweaks, restyles, and bug fixes do NOT go here (release notes
+    /// cover those) and must never trigger a spotlight. The post-update "What's new" tour shows the entries
+    /// newer than the version last launched.</summary>
+    private List<(string Version, string Summary, WalkStep Step)> FeatureSpotlights() => new()
+    {
+        ("0.3.18", "Pro Tools — profiles, backups, multi-PC sync & auto-update",
+            new WalkStep(null, () => _vm.IsPro ? ProToolsButton : GetProButton, "Pro Tools",
+                "Profiles / loadouts, backups, multi-PC sync, and auto-update-on-launch all live here (Pro).")),
+        ("0.3.20", "Addon categories + a sortable “Released” date",
+            new WalkStep(0, () => MainTabs, "Categories & “Released” date",
+                "Installed addons now show a Category (auto-filled from ESOUI, and overridable) plus a sortable “Released” date. Click any header to sort.")),
+        ("0.3.22", "First-run walkthrough + “?” replay button",
+            new WalkStep(null, () => HelpButton, "Replay any time",
+                "The new “?” button replays this welcome walkthrough whenever you want.")),
+    };
+
+    private List<(string Version, string Summary, WalkStep Step)> WhatsNewSince(string lastSeen)
+    {
+        var cur = UpdateChecker.CurrentVersion;
+        return FeatureSpotlights()
+            .Where(f => VersionCompare.IsNewer(f.Version, lastSeen)        // newer than the version last launched
+                     && !VersionCompare.IsNewer(f.Version, cur))           // and already shipped (≤ current)
+            .ToList();
     }
 
     private void ShowWalkStep()
@@ -204,6 +255,58 @@ public partial class MainWindow : Window
     }
 
     private void ReplayWalkthrough_Click(object sender, RoutedEventArgs e) => StartWalkthrough();
+
+    /// <summary>Post-update dialog: lists the new meaningful features and offers a "Show me" spotlight tour.</summary>
+    private void ShowWhatsNewDialog(string version, List<(string Version, string Summary, WalkStep Step)> items)
+    {
+        Brush B(string key, string fallback) =>
+            TryFindResource(key) as Brush ?? (Brush)new BrushConverter().ConvertFromString(fallback)!;
+
+        var win = new Window
+        {
+            Title = $"What's New - v{version}",
+            Width = 480, MinWidth = 420,
+            SizeToContent = SizeToContent.Height, MaxHeight = 560,
+            Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = B("Bg", "#1E1E1E"), FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
+            ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
+        };
+
+        var grid = new Grid { Margin = new Thickness(18) };
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var header = new TextBlock
+        {
+            Text = $"What's new in v{version}", Foreground = B("Text", "#E6E6E6"),
+            FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 4),
+        };
+        Grid.SetRow(header, 0); grid.Children.Add(header);
+
+        var notes = "Here's what changed since you last used the app:\n\n"
+                  + string.Join("\n", items.Select(i => "- " + i.Summary));
+        var body = new Border
+        {
+            Background = B("Panel", "#252526"), BorderBrush = B("Border", "#3A3A3A"), BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6), Padding = new Thickness(12), Margin = new Thickness(0, 8, 0, 0),
+            Child = BuildNotesView(notes, B),
+        };
+        Grid.SetRow(body, 1); grid.Children.Add(body);
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+        var showMe = new Button { Content = "Show me what's new ▶", Margin = new Thickness(0, 0, 8, 0) };
+        if (TryFindResource("Primary") is Style ps) showMe.Style = ps;
+        showMe.Click += (_, _) => { win.Close(); StartTour(items.Select(i => i.Step).ToList()); };
+        var close = new Button { Content = "Close", IsCancel = true, IsDefault = true };
+        if (TryFindResource("Ghost") is Style gs) close.Style = gs;
+        close.Click += (_, _) => win.Close();
+        buttons.Children.Add(showMe); buttons.Children.Add(close);
+        Grid.SetRow(buttons, 2); grid.Children.Add(buttons);
+
+        win.Content = grid;
+        win.ShowDialog();
+    }
 
     private void ShowLicenseDialog()
     {
