@@ -525,32 +525,45 @@ public partial class MainWindow : Window
 
         if (!_vm.IsPro)
         {
-            // Pricing cards — open the LS checkout; after buying, the user returns and activates the key.
-            foreach (var plan in _vm.ProPlans)
+            // Plan picker (dropdown) + anchored pricing — open the LS checkout for the chosen plan.
+            var plans = _vm.ProPlans;
+            if (plans.Count > 0)
             {
-                var card = new Border
+                var combo = new System.Windows.Controls.ComboBox { Margin = new Thickness(0, 0, 0, 10) };
+                foreach (var p in plans)
+                    combo.Items.Add(string.IsNullOrWhiteSpace(p.Badge) ? p.Name : $"{p.Name}  —  {p.Badge}");
+
+                var priceLine = new TextBlock { Margin = new Thickness(0, 0, 0, 2) };
+                var tagline = new TextBlock { Foreground = B("Muted", "#9A9A9A"), FontSize = 12, Margin = new Thickness(0, 0, 0, 12) };
+                var getBtn = new Button { HorizontalAlignment = HorizontalAlignment.Left };
+                if (TryFindResource("Update") is Style gs2) getBtn.Style = gs2;
+
+                void Refresh()
                 {
-                    Background = B("Panel", "#252526"), BorderBrush = B("Border", "#3A3A3A"), BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(8), Padding = new Thickness(12, 10, 12, 10), Margin = new Thickness(0, 0, 0, 8),
-                };
-                var g = new Grid();
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                var left = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-                left.Children.Add(new TextBlock { Text = $"{plan.Name}  ·  {plan.Price} {plan.Period}".Trim(), Foreground = B("Text", "#E6E6E6"), FontSize = 15, FontWeight = FontWeights.Bold });
-                if (!string.IsNullOrWhiteSpace(plan.Tagline))
-                    left.Children.Add(new TextBlock { Text = plan.Tagline, Foreground = B("Accent", "#5B8DEF"), FontSize = 12, Margin = new Thickness(0, 2, 0, 0) });
-                Grid.SetColumn(left, 0); g.Children.Add(left);
-                var choose = new Button { Content = plan.Recurring ? "Subscribe" : "Buy", VerticalAlignment = VerticalAlignment.Center };
-                if (TryFindResource("Update") is Style cs) choose.Style = cs;
-                var url = plan.CheckoutUrl;
-                choose.Click += (_, _) => OpenUrl(url);
-                Grid.SetColumn(choose, 1); g.Children.Add(choose);
-                card.Child = g;
-                panel.Children.Add(card);
+                    var p = plans[combo.SelectedIndex < 0 ? 0 : combo.SelectedIndex];
+                    priceLine.Inlines.Clear();
+                    if (!string.IsNullOrWhiteSpace(p.OriginalPrice))
+                        priceLine.Inlines.Add(new System.Windows.Documents.Run(p.OriginalPrice + "   ")
+                        { TextDecorations = TextDecorations.Strikethrough, Foreground = B("Muted", "#9A9A9A"), FontSize = 14 });
+                    priceLine.Inlines.Add(new System.Windows.Documents.Run($"{p.Price} {p.Period}".Trim())
+                    { FontWeight = FontWeights.Bold, FontSize = 19, Foreground = B("Text", "#E6E6E6") });
+                    if (!string.IsNullOrWhiteSpace(p.Badge))
+                        priceLine.Inlines.Add(new System.Windows.Documents.Run("    " + p.Badge)
+                        { FontWeight = FontWeights.Bold, FontSize = 13, Foreground = B("Accent", "#5B8DEF") });
+                    tagline.Text = p.Tagline;
+                    getBtn.Content = p.Recurring ? "Subscribe" : "Buy";
+                }
+                combo.SelectionChanged += (_, _) => Refresh();
+                combo.SelectedIndex = 0;   // first plan (Annual) is the default/nudge
+                getBtn.Click += (_, _) => OpenUrl(plans[combo.SelectedIndex < 0 ? 0 : combo.SelectedIndex].CheckoutUrl);
+
+                panel.Children.Add(combo);
+                panel.Children.Add(priceLine);
+                panel.Children.Add(tagline);
+                panel.Children.Add(getBtn);
             }
 
-            panel.Children.Add(new TextBlock { Text = "Already have a license key?", Foreground = B("Muted", "#9A9A9A"), FontSize = 13, Margin = new Thickness(0, 8, 0, 4) });
+            panel.Children.Add(new TextBlock { Text = "Already have a license key?", Foreground = B("Muted", "#9A9A9A"), FontSize = 13, Margin = new Thickness(0, 14, 0, 4) });
             var keyBox = new TextBox { FontSize = 15, Padding = new Thickness(6, 5, 6, 5), Margin = new Thickness(0, 0, 0, 10) };
             panel.Children.Add(keyBox);
             var activate = new Button { Content = "Activate", HorizontalAlignment = HorizontalAlignment.Left };

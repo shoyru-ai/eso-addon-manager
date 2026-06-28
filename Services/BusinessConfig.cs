@@ -7,12 +7,14 @@ namespace EsoAddons.Services;
 /// <summary>A single purchasable plan shown on the Get Pro screen.</summary>
 public class PlanInfo
 {
-    public string Name { get; set; } = "";        // "Monthly", "Annual", "Lifetime"
-    public string Price { get; set; } = "";       // "$2.99"
-    public string Period { get; set; } = "";      // "/mo", "/yr", "one-time"
-    public string Tagline { get; set; } = "";     // "Best value — save ~45%"
+    public string Name { get; set; } = "";          // "Monthly", "Annual", "Lifetime"
+    public string Price { get; set; } = "";         // "$19.99"
+    public string Period { get; set; } = "";        // "/mo", "/yr", "one-time"
+    public string OriginalPrice { get; set; } = ""; // struck-through anchor, e.g. "$35.88" (optional)
+    public string Badge { get; set; } = "";         // "Save 44%" / "Best value" (optional)
+    public string Tagline { get; set; } = "";       // short note under the price (optional)
     public string CheckoutUrl { get; set; } = "";
-    public bool Recurring { get; set; }           // true for subscriptions
+    public bool Recurring { get; set; }             // true for subscriptions
 }
 
 /// <summary>Business/monetization config (product IDs, checkout URLs, prices, backend URL). Loaded from an
