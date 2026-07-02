@@ -30,4 +30,13 @@
     <Page Include="App.xaml" />
   </ItemGroup>
 
+  <!-- The test project lives in a subfolder of this repo; keep its files out of the app's default
+       globs so the app doesn't try to compile them. The test project builds separately. -->
+  <ItemGroup>
+    <Compile Remove="ESOAddonsTests\**\*.cs" />
+    <Page Remove="ESOAddonsTests\**\*.xaml" />
+    <EmbeddedResource Remove="ESOAddonsTests\**" />
+    <None Remove="ESOAddonsTests\**" />
+  </ItemGroup>
+
 </Project>
