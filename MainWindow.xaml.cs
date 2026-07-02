@@ -28,6 +28,7 @@ public partial class MainWindow : Window
         Loaded += async (_, _) =>
         {
             Diag.Log($"Loaded fired. version={UpdateChecker.CurrentVersion}");
+            if (!_vm.LanguageChosen) ShowLanguageDialog();   // first run: pick the UI language
             if (!EnsureTermsAccepted()) { Application.Current.Shutdown(); return; }   // must accept to use
             await _vm.LoadAsync();
             Diag.Log("LoadAsync done. checking license…");
@@ -75,6 +76,52 @@ public partial class MainWindow : Window
     private void ProTools_Click(object sender, RoutedEventArgs e)
         => new ProToolsWindow(_vm) { Owner = this }.ShowDialog();
 
+    // ---- Header ⚙ settings menu ----
+    private void SettingsMenu_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu })
+        {
+            menu.PlacementTarget = (UIElement)sender;
+            menu.IsOpen = true;
+        }
+    }
+
+    private void About_Click(object sender, RoutedEventArgs e) => ShowAboutDialog();
+
+    // ---- Language picker (first-run + ⚙ menu) ----
+    private void Language_Click(object sender, RoutedEventArgs e) => ShowLanguageDialog();
+
+    private void ShowLanguageDialog()
+    {
+        Brush B(string key, string fallback) =>
+            TryFindResource(key) as Brush ?? (Brush)new BrushConverter().ConvertFromString(fallback)!;
+
+        var win = new Window
+        {
+            Title = Loc.Instance["Lang_Title"], Width = 360, SizeToContent = SizeToContent.Height,
+            Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = B("Bg", "#1E1E1E"), FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
+            ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
+        };
+        var panel = new StackPanel { Margin = new Thickness(22) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = Loc.Instance["Lang_Title"], FontSize = 18, FontWeight = FontWeights.Bold,
+            Foreground = B("Text", "#E6E6E6"), Margin = new Thickness(0, 0, 0, 14),
+        });
+        var combo = new ComboBox { FontSize = 15 };
+        foreach (var (code, name) in Loc.Languages) combo.Items.Add(new ComboBoxItem { Content = name, Tag = code });
+        combo.SelectedIndex = Math.Max(0, Array.FindIndex(Loc.Languages, l => l.Code == _vm.Language));
+        combo.SelectionChanged += (_, _) => { if (combo.SelectedItem is ComboBoxItem ci && ci.Tag is string c) _vm.Language = c; };
+        panel.Children.Add(combo);
+        var ok = new Button { Content = Loc.Instance["Lang_OK"], HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 0), IsDefault = true };
+        if (TryFindResource("Primary") is Style ps) ok.Style = ps;
+        ok.Click += (_, _) => { if (combo.SelectedItem is ComboBoxItem ci && ci.Tag is string c) _vm.Language = c; win.Close(); };
+        panel.Children.Add(ok);
+        win.Content = panel;
+        win.ShowDialog();
+    }
+
     // Read the combo's live text directly — an editable ComboBox's Text binding doesn't reliably
     // flush to the VM before the button's click fires.
     private void SetCategory_Click(object sender, RoutedEventArgs e)
@@ -87,7 +134,7 @@ public partial class MainWindow : Window
     /// <summary>Bump this when the first-run walkthrough changes enough to re-greet existing users once.</summary>
     private const int CurrentWalkthroughVersion = 2;
 
-    private sealed record WalkStep(int? Tab, Func<FrameworkElement?> Target, string Title, string Body);
+    private sealed record WalkStep(int? Tab, Func<FrameworkElement?> Target, string Title, string Body, Action? OnShow = null);
     private List<WalkStep>? _walk;
     private int _walkIndex;
     private bool _walkIsFirstRun;
@@ -96,28 +143,47 @@ public partial class MainWindow : Window
     {
         // The Pro step adapts to the user's tier: free users see "Get Pro" highlighted, Pro users see "Pro Tools".
         FrameworkElement proTarget = _vm.IsPro ? ProToolsButton : GetProButton;
-        var proTitle = _vm.IsPro ? "Pro Tools" : "Unlock more with Pro";
-        var proBody = _vm.IsPro
-            ? "Pro Tools holds your profiles / loadouts, backups, and multi-PC sync — plus auto-update-on-launch. Themes and addon categories are unlocked too."
-            : "Pro adds Update-All & auto-update-on-launch, dark / light themes, addon categories, and profiles, backups & multi-PC sync. Your addons are always free — Pro is just for the manager. Click “Get Pro” to see the full comparison.";
+        var L = Loc.Instance;
+        var proTitle = _vm.IsPro ? L["Walk_ProTitle_Pro"] : L["Walk_ProTitle_Free"];
+        var proBody = _vm.IsPro ? L["Walk_ProBody_Pro"] : L["Walk_ProBody_Free"];
 
         return new List<WalkStep>
         {
-            new(null, () => null, "Welcome to Shoyru Addon Suite",
-                "The complete addon manager for ESO. This quick tour shows what you can do — in both the free and Pro versions. You can skip anytime."),
-            new(0, () => MainTabs, "Your installed addons",
-                "The Installed tab lists every addon you have. Search it, sort any column (including the “Released” date), see installed vs. latest versions, and remove addons. All free."),
-            new(1, () => MainTabs, "Browse all of ESOUI",
-                "Switch to Browse to search the entire ESOUI catalog and install any addon in one click — filter by category, sort by downloads or release date. Free."),
-            new(0, () => DetailPane, "Details & dependencies",
-                "Click any addon to see its description, what’s new, and its dependencies — with one-click “Get” for any missing library. Free."),
+            new(null, () => null, L["Walk_WelcomeTitle"], L["Walk_WelcomeBody"]),
+            new(0, () => MainTabs, L["Walk_InstalledTitle"], L["Walk_InstalledBody"]),
+            new(1, () => MainTabs, L["Walk_BrowseTitle"], L["Walk_BrowseBody"]),
+            new(1, () => BrowsePane, L["Walk_DescribeTitle"],
+                _vm.IsPro ? L["Walk_DescribeBody_Pro"] : L["Walk_DescribeBody_Free"],
+                () => _vm.ShowDescribeDemo()),
+            new(0, () => DetailPane, L["Walk_DetailsTitle"], L["Walk_DetailsBody"]),
+            new(0, () => DetailPane, L["Walk_TranslateTitle"],
+                _vm.IsPro ? L["Walk_TranslateBody_Pro"] : L["Walk_TranslateBody_Free"]),
             new(null, () => proTarget, proTitle, proBody),
-            new(null, () => null, "You’re all set!",
-                "That’s the tour. If your AddOns folder wasn’t auto-detected, use “Change folder…” up top — then browse and install. Replay this anytime with the “?” button."),
+            new(null, () => SettingsButton, L["Walk_SetTitle"], L["Walk_SetBody"]),
         };
     }
 
     private void StartWalkthrough() => StartTour(BuildWalk(), firstRun: true);
+
+    /// <summary>Celebratory tour shown right after a user activates Pro — highlights everything they unlocked.</summary>
+    private void StartProTour() => StartTour(BuildProTour(), firstRun: false);
+
+    private List<WalkStep> BuildProTour()
+    {
+        var L = Loc.Instance;
+        return new()
+        {
+            new(null, () => null, L["Tour_WelcomeTitle"], L["Tour_WelcomeBody"]),
+            new(1, () => BrowsePane, L["Tour_DescribeTitle"], L["Tour_DescribeBody"],
+                () => _vm.ShowDescribeDemo()),
+            new(0, () => DetailPane, L["Tour_TranslateTitle"], L["Tour_TranslateBody"]),
+            new(null, () => ProToolsButton, L["Tour_ToolsTitle"], L["Tour_ToolsBody"]),
+            new(0, () => MainTabs, L["Tour_CatTitle"], L["Tour_CatBody"]),
+            new(1, () => MainTabs, L["Tour_DepsTitle"], L["Tour_DepsBody"]),
+            new(null, () => SettingsButton, L["Tour_ThemeTitle"], L["Tour_ThemeBody"]),
+            new(null, () => null, L["Tour_EnjoyTitle"], L["Tour_EnjoyBody"]),
+        };
+    }
 
     /// <summary>Runs any spotlight tour: the full first-run walkthrough (firstRun=true, marks the walkthrough
     /// version complete when it ends) or a post-update "what's new" set (firstRun=false).</summary>
@@ -153,18 +219,35 @@ public partial class MainWindow : Window
     /// feature / piece of functionality. Text tweaks, restyles, and bug fixes do NOT go here (release notes
     /// cover those) and must never trigger a spotlight. The post-update "What's new" tour shows the entries
     /// newer than the version last launched.</summary>
-    private List<(string Version, string Summary, WalkStep Step)> FeatureSpotlights() => new()
+    private List<(string Version, string Summary, WalkStep Step)> FeatureSpotlights()
     {
-        ("0.3.18", "Pro Tools — profiles, backups, multi-PC sync & auto-update",
-            new WalkStep(null, () => _vm.IsPro ? ProToolsButton : GetProButton, "Pro Tools",
-                "Profiles / loadouts, backups, multi-PC sync, and auto-update-on-launch all live here (Pro).")),
-        ("0.3.20", "Addon categories + a sortable “Released” date",
-            new WalkStep(0, () => MainTabs, "Categories & “Released” date",
-                "Installed addons now show a Category (auto-filled from ESOUI, and overridable) plus a sortable “Released” date. Click any header to sort.")),
-        ("0.3.22", "First-run walkthrough + “?” replay button",
-            new WalkStep(null, () => HelpButton, "Replay any time",
-                "The new “?” button replays this welcome walkthrough whenever you want.")),
-    };
+        var L = Loc.Instance;
+        return new()
+        {
+            ("0.3.18", L["Spot_318_Summary"],
+                new WalkStep(null, () => _vm.IsPro ? ProToolsButton : GetProButton, L["Spot_318_Title"],
+                    L["Spot_318_Body"])),
+            ("0.3.20", L["Spot_320_Summary"],
+                new WalkStep(0, () => MainTabs, L["Spot_320_Title"],
+                    L["Spot_320_Body"])),
+            ("0.3.22", L["Spot_322_Summary"],
+                new WalkStep(null, () => SettingsButton, L["Spot_322_Title"],
+                    L["Spot_322_Body"])),
+            ("0.4.4", L["Spot_44_Summary"],
+                new WalkStep(null, () => SettingsButton, L["Spot_44_Title"],
+                    L["Spot_44_Body"])),
+            ("0.4.8", L["Spot_48_Summary"],
+                new WalkStep(1, () => BrowsePane, L["Spot_48_Title"],
+                    _vm.IsPro ? L["Spot_48_Body_Pro"] : L["Spot_48_Body_Free"],
+                    () => _vm.ShowDescribeDemo())),
+            ("0.4.18", L["Spot_418_Summary"],
+                new WalkStep(1, () => BrowsePane, L["Spot_418_Title"],
+                    _vm.IsPro ? L["Spot_418_Body_Pro"] : L["Spot_418_Body_Free"])),
+            ("1.0.3", L["Spot_103_Summary"],
+                new WalkStep(0, () => UpdateAllButton, L["Spot_103_Title"],
+                    L["Spot_103_Body"])),
+        };
+    }
 
     private List<(string Version, string Summary, WalkStep Step)> WhatsNewSince(string lastSeen)
     {
@@ -179,14 +262,16 @@ public partial class MainWindow : Window
     {
         if (_walk is null) return;
         var step = _walk[_walkIndex];
-        WalkStepCounter.Text = $"Step {_walkIndex + 1} of {_walk.Count}";
+        WalkStepCounter.Text = string.Format(Loc.Instance["Nav_StepOf"], _walkIndex + 1, _walk.Count);
         WalkTitle.Text = step.Title;
         WalkBody.Text = step.Body;
         WalkBack.Visibility = _walkIndex > 0 ? Visibility.Visible : Visibility.Collapsed;
         WalkSkip.Visibility = _walkIndex == _walk.Count - 1 ? Visibility.Collapsed : Visibility.Visible;
-        WalkNext.Content = _walkIndex == _walk.Count - 1 ? "Done" : "Next ▶";
+        WalkNext.Content = _walkIndex == _walk.Count - 1 ? Loc.Instance["Nav_Done"] : Loc.Instance["Nav_Next"];
 
         if (step.Tab is int t && MainTabs.SelectedIndex != t) MainTabs.SelectedIndex = t;
+
+        step.OnShow?.Invoke();   // optional scripted action for this step (e.g. the live "Describe" demo)
 
         // Let the tab switch + layout settle, then place the spotlight over the target.
         Dispatcher.BeginInvoke(new Action(() => PositionWalk(step)), System.Windows.Threading.DispatcherPriority.Loaded);
@@ -257,6 +342,7 @@ public partial class MainWindow : Window
     private void EndWalkthrough()
     {
         WalkthroughHost.Visibility = Visibility.Collapsed;
+        _vm.ClearDescribeDemo();   // undo the scripted "Describe" demo if it ran, back to normal Browse
         if (_walkIsFirstRun && _vm.WalkthroughVersion < CurrentWalkthroughVersion)
             _vm.WalkthroughVersion = CurrentWalkthroughVersion;   // mark complete only on finish/skip
         _walk = null;
@@ -272,7 +358,7 @@ public partial class MainWindow : Window
 
         var win = new Window
         {
-            Title = $"What's New - v{version}",
+            Title = string.Format(Loc.Instance["Wn_Title"], version),
             Width = 480, MinWidth = 420,
             SizeToContent = SizeToContent.Height, MaxHeight = 560,
             Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -287,12 +373,12 @@ public partial class MainWindow : Window
 
         var header = new TextBlock
         {
-            Text = $"What's new in v{version}", Foreground = B("Text", "#E6E6E6"),
+            Text = string.Format(Loc.Instance["Wn_Header"], version), Foreground = B("Text", "#E6E6E6"),
             FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 4),
         };
         Grid.SetRow(header, 0); grid.Children.Add(header);
 
-        var notes = "Here's what changed since you last used the app:\n\n"
+        var notes = Loc.Instance["Wn_Intro"] + "\n\n"
                   + string.Join("\n", items.Select(i => "- " + i.Summary));
         var body = new Border
         {
@@ -303,16 +389,79 @@ public partial class MainWindow : Window
         Grid.SetRow(body, 1); grid.Children.Add(body);
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
-        var showMe = new Button { Content = "Show me what's new ▶", Margin = new Thickness(0, 0, 8, 0) };
+        var showMe = new Button { Content = Loc.Instance["Wn_ShowMe"], Margin = new Thickness(0, 0, 8, 0) };
         if (TryFindResource("Primary") is Style ps) showMe.Style = ps;
         showMe.Click += (_, _) => { win.Close(); StartTour(items.Select(i => i.Step).ToList(), firstRun: false); };
-        var close = new Button { Content = "Close", IsCancel = true, IsDefault = true };
+        var close = new Button { Content = Loc.Instance["PT_Close"], IsCancel = true, IsDefault = true };
         if (TryFindResource("Ghost") is Style gs) close.Style = gs;
         close.Click += (_, _) => win.Close();
         buttons.Children.Add(showMe); buttons.Children.Add(close);
         Grid.SetRow(buttons, 2); grid.Children.Add(buttons);
 
         win.Content = grid;
+        win.ShowDialog();
+    }
+
+    // ==================== About dialog ====================
+
+    private void ShowAboutDialog()
+    {
+        Brush B(string key, string fallback) =>
+            TryFindResource(key) as Brush ?? (Brush)new BrushConverter().ConvertFromString(fallback)!;
+
+        var win = new Window
+        {
+            Title = "About Shoyru's Addon Suite",
+            Width = 420, SizeToContent = SizeToContent.Height,
+            Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = B("Bg", "#1E1E1E"), FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
+            ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
+        };
+
+        var panel = new StackPanel { Margin = new Thickness(22) };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = "Shoyru's Addon Suite", Foreground = B("Text", "#E6E6E6"),
+            FontSize = 22, FontWeight = FontWeights.Bold,
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = _vm.AppVersion, Foreground = B("Muted", "#9A9AA6"),
+            FontSize = 15, Margin = new Thickness(0, 2, 0, 0),
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = Loc.Instance["About_Tagline"],
+            Foreground = B("Text", "#E6E6E6"), FontSize = 15, TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 14, 0, 0),
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = _vm.IsPro ? Loc.Instance["About_ProLicensed"] : Loc.Instance["About_FreeEdition"],
+            Foreground = _vm.IsPro ? B("Accent", "#5B8DEF") : B("Muted", "#9A9AA6"),
+            FontSize = 14, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 12, 0, 0),
+        });
+
+        void AddLink(string text, string url)
+        {
+            var link = new TextBlock { Margin = new Thickness(0, 8, 0, 0), FontSize = 14 };
+            var h = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(text))
+            {
+                Foreground = B("Accent", "#5B8DEF"),
+            };
+            h.Click += (_, _) => OpenUrl(url);
+            link.Inlines.Add(h);
+            panel.Children.Add(link);
+        }
+        AddLink(Loc.Instance["About_GitHub"], "https://github.com/shoyru-ai/eso-addon-manager");
+
+        var close = new Button { Content = Loc.Instance["PT_Close"], IsCancel = true, IsDefault = true, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 18, 0, 0) };
+        if (TryFindResource("Ghost") is Style gs) close.Style = gs;
+        close.Click += (_, _) => win.Close();
+        panel.Children.Add(close);
+
+        win.Content = panel;
         win.ShowDialog();
     }
 
@@ -334,7 +483,7 @@ public partial class MainWindow : Window
 
         var win = new Window
         {
-            Title = "Shoyru Addon Suite — Terms & Conditions",
+            Title = "Shoyru's Addon Suite — Terms & Conditions",
             Width = 580, Height = 620, Owner = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Background = B("Bg", "#1E1E1E"), FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
@@ -348,7 +497,7 @@ public partial class MainWindow : Window
 
         var header = new TextBlock
         {
-            Text = "Before you start — please review", Foreground = B("Text", "#E6E6E6"),
+            Text = Loc.Instance["Terms_Heading"], Foreground = B("Text", "#E6E6E6"),
             FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 10),
         };
         Grid.SetRow(header, 0); grid.Children.Add(header);
@@ -370,10 +519,10 @@ public partial class MainWindow : Window
         Grid.SetRow(scroller, 1); grid.Children.Add(scroller);
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
-        var decline = new Button { Content = "Decline & Exit", Margin = new Thickness(0, 0, 8, 0) };
+        var decline = new Button { Content = Loc.Instance["Terms_Decline"], Margin = new Thickness(0, 0, 8, 0) };
         if (TryFindResource("Ghost") is Style gs) decline.Style = gs;
         decline.Click += (_, _) => { win.DialogResult = false; };
-        var agree = new Button { Content = "I Agree" };
+        var agree = new Button { Content = Loc.Instance["Terms_Agree"] };
         if (TryFindResource("Primary") is Style ps) agree.Style = ps;
         agree.Click += (_, _) => { win.DialogResult = true; };
         buttons.Children.Add(decline); buttons.Children.Add(agree);
@@ -473,30 +622,31 @@ public partial class MainWindow : Window
 
         var win = new Window
         {
-            Title = "Send Feedback", Width = 480, MinWidth = 420, SizeToContent = SizeToContent.Height,
+            Title = Loc.Instance["Fb_Title"], Width = 480, MinWidth = 420, SizeToContent = SizeToContent.Height,
             Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Background = B("Bg", "#1E1E1E"), FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
             ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
         };
         var panel = new StackPanel { Margin = new Thickness(18) };
-        panel.Children.Add(new TextBlock { Text = heading ?? "Send feedback", Foreground = B("Text", "#E6E6E6"), FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 4) });
-        panel.Children.Add(new TextBlock { Text = "We read everything — it directly shapes what we build next.", Foreground = B("Muted", "#9A9A9A"), FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
+        panel.Children.Add(new TextBlock { Text = heading ?? Loc.Instance["Fb_Heading"], Foreground = B("Text", "#E6E6E6"), FontSize = 18, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 4) });
+        panel.Children.Add(new TextBlock { Text = Loc.Instance["Fb_Sub"], Foreground = B("Muted", "#9A9A9A"), FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) });
 
         System.Windows.Controls.ComboBox? typeCombo = null;
         if (fixedType is null)
         {
-            panel.Children.Add(new TextBlock { Text = "Type", Foreground = B("Muted", "#9A9A9A"), FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
+            panel.Children.Add(new TextBlock { Text = Loc.Instance["Fb_Type"], Foreground = B("Muted", "#9A9A9A"), FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
             typeCombo = new System.Windows.Controls.ComboBox { Margin = new Thickness(0, 0, 0, 10) };
-            foreach (var t in new[] { "Bug", "Idea", "Other" }) typeCombo.Items.Add(t);
+            // Localized labels shown to the user; the raw type sent to the backend stays English (see send handler).
+            foreach (var t in new[] { Loc.Instance["Fb_Bug"], Loc.Instance["Fb_Idea"], Loc.Instance["Fb_Other"] }) typeCombo.Items.Add(t);
             typeCombo.SelectedIndex = 0;
             panel.Children.Add(typeCombo);
         }
 
-        panel.Children.Add(new TextBlock { Text = prompt ?? "Your message", Foreground = B("Muted", "#9A9A9A"), FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
+        panel.Children.Add(new TextBlock { Text = prompt ?? Loc.Instance["Fb_Message"], Foreground = B("Muted", "#9A9A9A"), FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
         var msgBox = new TextBox { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Height = 110, VerticalContentAlignment = VerticalAlignment.Top, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 0, 0, 10) };
         panel.Children.Add(msgBox);
 
-        panel.Children.Add(new TextBlock { Text = "Email or Discord (optional, for follow-up)", Foreground = B("Muted", "#9A9A9A"), FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
+        panel.Children.Add(new TextBlock { Text = Loc.Instance["Fb_Contact"], Foreground = B("Muted", "#9A9A9A"), FontSize = 12, Margin = new Thickness(0, 0, 0, 4) });
         var contactBox = new TextBox { Margin = new Thickness(0, 0, 0, 10) };
         panel.Children.Add(contactBox);
 
@@ -504,21 +654,23 @@ public partial class MainWindow : Window
         panel.Children.Add(status);
 
         var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        var send = new Button { Content = "Send", Margin = new Thickness(0, 0, 8, 0) };
+        var send = new Button { Content = Loc.Instance["Fb_Send"], Margin = new Thickness(0, 0, 8, 0) };
         if (TryFindResource("Primary") is Style ps) send.Style = ps;
-        var close = new Button { Content = "Close", IsCancel = true };
+        var close = new Button { Content = Loc.Instance["PT_Close"], IsCancel = true };
         if (TryFindResource("Ghost") is Style gs) close.Style = gs;
         close.Click += (_, _) => win.Close();
         send.Click += async (_, _) =>
         {
             var msg = msgBox.Text.Trim();
-            if (msg.Length == 0) { status.Text = "Please enter a message."; status.Foreground = B("Danger", "#E06C6C"); status.Visibility = Visibility.Visible; return; }
+            if (msg.Length == 0) { status.Text = Loc.Instance["Fb_EnterMessage"]; status.Foreground = B("Danger", "#E06C6C"); status.Visibility = Visibility.Visible; return; }
             send.IsEnabled = false;
-            status.Text = "Sending…"; status.Foreground = B("Muted", "#9A9A9A"); status.Visibility = Visibility.Visible;
-            var type = fixedType ?? (typeCombo?.SelectedItem as string ?? "Other");
+            status.Text = Loc.Instance["Fb_Sending"]; status.Foreground = B("Muted", "#9A9A9A"); status.Visibility = Visibility.Visible;
+            // Map the (possibly localized) picker selection back to a stable English type for the backend.
+            var englishTypes = new[] { "Bug", "Idea", "Other" };
+            var type = fixedType ?? (typeCombo is { SelectedIndex: >= 0 and var i } ? englishTypes[i] : "Other");
             var ok = await _vm.SendFeedbackAsync(type, msg, contactBox.Text.Trim());
-            if (ok) { status.Text = "Thanks! We got it. 🙌"; status.Foreground = B("Good", "#5BBF73"); send.Content = "Sent"; }
-            else { status.Text = "Couldn't send — check your connection and try again."; status.Foreground = B("Danger", "#E06C6C"); send.IsEnabled = true; }
+            if (ok) { status.Text = Loc.Instance["Fb_Thanks"]; status.Foreground = B("Good", "#5BBF73"); send.Content = Loc.Instance["Fb_Sent"]; }
+            else { status.Text = Loc.Instance["Fb_Failed"]; status.Foreground = B("Danger", "#E06C6C"); send.IsEnabled = true; }
         };
         row.Children.Add(send); row.Children.Add(close);
         panel.Children.Add(row);
@@ -532,9 +684,10 @@ public partial class MainWindow : Window
         Brush B(string key, string fallback) =>
             TryFindResource(key) as Brush ?? (Brush)new BrushConverter().ConvertFromString(fallback)!;
 
+        var L = Loc.Instance;
         var win = new Window
         {
-            Title = "Shoyru Addon Suite - Pro",
+            Title = "Shoyru's Addon Suite - Pro",
             Width = 540, MinWidth = 500,
             SizeToContent = SizeToContent.Height,
             Owner = this,
@@ -546,6 +699,7 @@ public partial class MainWindow : Window
         };
 
         var panel = new StackPanel { Margin = new Thickness(18) };
+        bool justActivatedPro = false;   // set on a successful free→Pro activation → triggers the Pro tour
 
         if (_vm.IsPro)
         {
@@ -561,7 +715,7 @@ public partial class MainWindow : Window
             header.Children.Add(badge);
             header.Children.Add(new TextBlock
             {
-                Text = "Pro is active on this device", Foreground = B("Accent", "#5B8DEF"),
+                Text = L["Pro_ActiveHeader"], Foreground = B("Accent", "#5B8DEF"),
                 FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(8, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
             });
@@ -571,15 +725,13 @@ public partial class MainWindow : Window
         {
             panel.Children.Add(new TextBlock
             {
-                Text = "Unlock Pro", Foreground = B("Text", "#E6E6E6"),
+                Text = L["Pro_Unlock"], Foreground = B("Text", "#E6E6E6"),
                 FontSize = 20, FontWeight = FontWeights.Bold, Margin = new Thickness(0, 0, 0, 6),
             });
         }
         panel.Children.Add(new TextBlock
         {
-            Text = _vm.IsPro
-                ? "Thanks for supporting development! Premium features are unlocked."
-                : "Pro unlocks premium tool features (addon profiles, backups, multi-PC sync, and more). Your addons are always free — Pro is for the manager.",
+            Text = _vm.IsPro ? L["Pro_ThanksSub"] : L["Pro_UnlockSub"],
             Foreground = B("Muted", "#9A9A9A"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 14),
         });
 
@@ -592,7 +744,7 @@ public partial class MainWindow : Window
         {
             // Plan picker (dropdown) + anchored pricing — open the LS checkout for the chosen plan.
             var plans = _vm.ProPlans;
-            if (plans.Count > 0)
+            if (BusinessConfig.Current.PurchaseEnabled && plans.Count > 0)
             {
                 var combo = new System.Windows.Controls.ComboBox { Margin = new Thickness(0, 0, 0, 10) };
                 foreach (var p in plans)
@@ -617,7 +769,7 @@ public partial class MainWindow : Window
                         { FontWeight = FontWeights.Bold, FontSize = 13, Foreground = B("Accent", "#5B8DEF") });
                     tagline.Text = string.IsNullOrWhiteSpace(p.AvailabilityNote) ? p.Tagline
                         : string.IsNullOrWhiteSpace(p.Tagline) ? p.AvailabilityNote : $"{p.Tagline}  ·  {p.AvailabilityNote}";
-                    getBtn.Content = p.TrialDays > 0 ? $"Start {p.TrialDays}-day free trial" : (p.Recurring ? "Subscribe" : "Buy");
+                    getBtn.Content = p.TrialDays > 0 ? string.Format(L["Pro_StartTrial"], p.TrialDays) : (p.Recurring ? L["Pro_Subscribe"] : L["Pro_Buy"]);
                 }
                 combo.SelectionChanged += (_, _) => Refresh();
                 combo.SelectedIndex = 0;   // first plan (Annual) is the default/nudge
@@ -628,11 +780,16 @@ public partial class MainWindow : Window
                 panel.Children.Add(tagline);
                 panel.Children.Add(getBtn);
             }
+            else
+            {
+                // Purchasing not live yet (store in review) — show a beta notice; key activation still works.
+                panel.Children.Add(new TextBlock { Text = L["Pro_BetaSoftgate"], Foreground = B("Muted", "#9A9A9A"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 2, 0, 8) });
+            }
 
-            panel.Children.Add(new TextBlock { Text = "Already have a license key?", Foreground = B("Muted", "#9A9A9A"), FontSize = 13, Margin = new Thickness(0, 14, 0, 4) });
+            panel.Children.Add(new TextBlock { Text = L["Pro_HaveKey"], Foreground = B("Muted", "#9A9A9A"), FontSize = 13, Margin = new Thickness(0, 14, 0, 4) });
             var keyBox = new TextBox { FontSize = 15, Padding = new Thickness(6, 5, 6, 5), Margin = new Thickness(0, 0, 0, 10) };
             panel.Children.Add(keyBox);
-            var activate = new Button { Content = "Activate", HorizontalAlignment = HorizontalAlignment.Left };
+            var activate = new Button { Content = L["Pro_Activate"], HorizontalAlignment = HorizontalAlignment.Left };
             if (TryFindResource("Primary") is Style ps) activate.Style = ps;
             activate.Click += async (_, _) =>
             {
@@ -641,21 +798,21 @@ public partial class MainWindow : Window
                 status.Text = msg; status.Visibility = Visibility.Visible;
                 status.Foreground = _vm.IsPro ? B("Good", "#5BBF73") : B("Danger", "#E06C6C");
                 activate.IsEnabled = true;
-                if (_vm.IsPro) win.Close();   // unlocked — close; header shows the PRO badge
+                if (_vm.IsPro) { justActivatedPro = true; win.Close(); }   // unlocked — close; header shows the PRO badge
             };
             panel.Children.Add(activate);
 
             // Upgrade-intent capture: let undecided users tell us what's missing.
             var upsell = new TextBlock { Margin = new Thickness(0, 14, 0, 0) };
-            var upLink = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run("Not ready? Tell us what would make Pro worth it →")) { Foreground = B("Muted", "#9A9A9A") };
-            upLink.Click += (_, _) => ShowFeedbackDialog("Upgrade", "What would make Pro worth it?", "What's missing, or what would make you upgrade? (optional contact below for a reply)");
+            var upLink = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(L["Pro_NotReady"])) { Foreground = B("Muted", "#9A9A9A") };
+            upLink.Click += (_, _) => ShowFeedbackDialog("Upgrade", L["Pro_UpgradeFbTitle"], L["Pro_UpgradeFbPrompt"]);
             upsell.Inlines.Add(upLink);
             panel.Children.Add(upsell);
         }
         else
         {
             // Plan + renewal
-            panel.Children.Add(new TextBlock { Text = $"Plan: {_vm.PlanName}", Foreground = B("Text", "#E6E6E6"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 2) });
+            panel.Children.Add(new TextBlock { Text = string.Format(L["Pro_PlanLabel"], _vm.PlanName), Foreground = B("Text", "#E6E6E6"), FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 2) });
             if (!string.IsNullOrWhiteSpace(_vm.RenewalText))
                 panel.Children.Add(new TextBlock { Text = _vm.RenewalText, Foreground = B("Muted", "#9A9A9A"), FontSize = 13, Margin = new Thickness(0, 0, 0, 12) });
 
@@ -663,39 +820,36 @@ public partial class MainWindow : Window
             if (_vm.IsSubscription)
             {
                 var subRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-                var manage = new Button { Content = "Manage subscription", Margin = new Thickness(0, 0, 8, 0) };
+                var manage = new Button { Content = L["Pro_Manage"], Margin = new Thickness(0, 0, 8, 0) };
                 if (TryFindResource("Primary") is Style ms) manage.Style = ms;
                 manage.Click += async (_, _) => { await _vm.ManageSubscriptionAsync(); };
-                var cancel = new Button { Content = "Cancel subscription" };
+                var cancel = new Button { Content = L["Pro_Cancel"] };
                 if (TryFindResource("Ghost") is Style cgs) cancel.Style = cgs;
                 cancel.Click += async (_, _) =>
                 {
-                    if (MessageBox.Show(win, "Cancel your Pro subscription? You'll keep Pro until the end of your current billing period.",
-                        "Cancel subscription", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
+                    if (MessageBox.Show(win, L["Pro_CancelConfirm"],
+                        L["Pro_Cancel"], MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
                     cancel.IsEnabled = false;
                     var msg = await _vm.CancelSubscriptionAsync();
                     status.Text = msg; status.Visibility = Visibility.Visible;
                     status.Foreground = B("Text", "#E6E6E6");
                     cancel.IsEnabled = true;
                     // Churn insight: ask why (optional) right at the moment of cancellation.
-                    if (msg.Contains("cancelled", StringComparison.OrdinalIgnoreCase))
-                        ShowFeedbackDialog("Cancellation", "Sorry to see you go — mind sharing why?", "What led you to cancel? (optional)");
+                    if (_vm.CancellationSucceeded)
+                        ShowFeedbackDialog("Cancellation", L["Pro_CancelFbTitle"], L["Pro_CancelFbPrompt"]);
                 };
                 subRow.Children.Add(manage); subRow.Children.Add(cancel);
                 panel.Children.Add(subRow);
             }
 
             var removeRow = new StackPanel { Orientation = Orientation.Horizontal };
-            var remove = new Button { Content = "Remove from this device", Margin = new Thickness(0, 0, 8, 0) };
+            var remove = new Button { Content = L["Pro_Remove"], Margin = new Thickness(0, 0, 8, 0) };
             if (TryFindResource("Ghost") is Style gs) remove.Style = gs;
             remove.Click += async (_, _) => { await _vm.RemoveLicenseAsync(); win.Close(); };
-            var info = new Button { Content = "ⓘ  What's this?", VerticalAlignment = VerticalAlignment.Center };
+            var info = new Button { Content = L["Pro_WhatsThis"], VerticalAlignment = VerticalAlignment.Center };
             if (TryFindResource("Ghost") is Style gi) info.Style = gi;
-            info.Click += (_, _) => MessageBox.Show(win,
-                "“Remove from this device” deactivates Pro on THIS computer and frees its activation seat.\n\n" +
-                "Use it when you want to move your license to another PC — each key works on a limited number of devices. " +
-                "Your purchase isn't lost: just re-enter your license key here anytime to reactivate Pro on this or another machine.",
-                "Remove from this device", MessageBoxButton.OK, MessageBoxImage.Information);
+            info.Click += (_, _) => MessageBox.Show(win, L["Pro_RemoveInfo"],
+                L["Pro_Remove"], MessageBoxButton.OK, MessageBoxImage.Information);
             removeRow.Children.Add(remove);
             removeRow.Children.Add(info);
             panel.Children.Add(removeRow);
@@ -705,31 +859,37 @@ public partial class MainWindow : Window
 
         // footer: support link
         var support = new TextBlock { Margin = new Thickness(0, 16, 0, 0) };
-        var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run("♥ Support Shoyru (donate)")) { Foreground = B("Accent", "#3B82F6") };
+        var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(L["Pro_Support"])) { Foreground = B("Accent", "#3B82F6") };
         link.Click += (_, _) => OpenUrl(_vm.SupportUrl);
         support.Inlines.Add(link);
         panel.Children.Add(support);
 
         win.Content = panel;
         win.ShowDialog();
+
+        // Just upgraded? Congratulate + tour the newly-unlocked Pro features (after the dialog closes).
+        if (justActivatedPro) StartProTour();
     }
 
     /// <summary>Free vs Pro feature comparison; the user's current tier column is outlined + highlighted.</summary>
     private UIElement BuildComparison(Func<string, string, Brush> B)
     {
-        var rows = new (string feat, bool free, bool pro)[]
+        var L = Loc.Instance;
+        var rows = new (string icon, string color, string feat, bool free, bool pro)[]
         {
-            ("Browse, search & install addons", true,  true),
-            ("Remove addons",                   true,  true),
-            ("See & install dependencies",      true,  true),
-            ("Update addons (incl. Update All)",false, true),
-            ("Auto-install dependencies",       false, true),
-            ("Auto-update on launch",           false, true),
-            ("Dark / light theme",              false, true),
-            ("Organize with categories",        false, true),
-            ("Profiles / loadouts",             false, true),
-            ("Backups & restore",               false, true),
-            ("Multi-PC sync",                   false, true),
+            ("🔎", "#5B8DEF", L["Cmp_Browse"],     true,  true),
+            ("🗑", "#E06C6C", L["Cmp_Remove"],     true,  true),
+            ("🔗", "#49C5A6", L["Cmp_Deps"],       true,  true),
+            ("✨", "#A78BFA", L["Cmp_Describe"],   false, true),
+            ("🌐", "#37C2C4", L["Cmp_Translate"],  false, true),
+            ("🔄", "#5BBF73", L["Cmp_Update"],     true,  true),
+            ("🧩", "#E0A458", L["Cmp_AutoDeps"],   false, true),
+            ("🚀", "#6FA8FF", L["Cmp_AutoUpdate"], false, true),
+            ("🎨", "#C77DFF", L["Cmp_Theme"],      false, true),
+            ("🏷", "#E0B84E", L["Cmp_Categories"], false, true),
+            ("📑", "#5BC8EF", L["Cmp_Profiles"],   false, true),
+            ("💾", "#5BBF73", L["Cmp_Backups"],    false, true),
+            ("☁", "#7DB8FF", L["Cmp_Sync"],       false, true),
         };
 
         var grid = new Grid { Margin = new Thickness(0, 2, 0, 14) };
@@ -757,39 +917,48 @@ public partial class MainWindow : Window
         {
             var tb = new TextBlock
             {
-                Text = you ? t + " (you)" : t,
+                Text = you ? $"{t} {L["Cmp_You"]}" : t,
                 TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap,
-                FontWeight = FontWeights.Bold, FontSize = 14,
+                FontWeight = FontWeights.Bold, FontSize = 15,
                 Foreground = you ? B("Accent", "#5B8DEF") : B("Text", "#E6E6E6"),
-                Margin = new Thickness(0, 0, 0, 7),
+                Margin = new Thickness(0, 0, 0, 8),
             };
             return tb;
         }
         var featHdr = new TextBlock
         {
-            Text = "Feature", FontWeight = FontWeights.Bold, FontSize = 14, Foreground = B("Muted", "#9A9A9A"),
-            Margin = new Thickness(0, 0, 0, 7), VerticalAlignment = VerticalAlignment.Center,
+            Text = L["Cmp_Feature"], FontWeight = FontWeights.Bold, FontSize = 15, Foreground = B("Muted", "#9A9A9A"),
+            Margin = new Thickness(0, 0, 0, 8), VerticalAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumn(featHdr, 0); Grid.SetRow(featHdr, 0); grid.Children.Add(featHdr);
-        var fh = Hdr("Free", yourCol == 1); Grid.SetColumn(fh, 1); Grid.SetRow(fh, 0); grid.Children.Add(fh);
-        var ph = Hdr("Pro", yourCol == 2); Grid.SetColumn(ph, 2); Grid.SetRow(ph, 0); grid.Children.Add(ph);
+        var fh = Hdr(L["Cmp_Free"], yourCol == 1); Grid.SetColumn(fh, 1); Grid.SetRow(fh, 0); grid.Children.Add(fh);
+        var ph = Hdr(L["Cmp_Pro"], yourCol == 2); Grid.SetColumn(ph, 2); Grid.SetRow(ph, 0); grid.Children.Add(ph);
 
         for (int i = 0; i < rows.Length; i++)
         {
-            var (feat, free, pro) = rows[i];
-            var ft = new TextBlock
+            var (icon, color, feat, free, pro) = rows[i];
+            var featPanel = new DockPanel { Margin = new Thickness(0, 4, 8, 4), LastChildFill = true, VerticalAlignment = VerticalAlignment.Center };
+            var iconTb = new TextBlock
             {
-                Text = feat, Foreground = B("Text", "#E6E6E6"), FontSize = 14, TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 3, 8, 3), VerticalAlignment = VerticalAlignment.Center,
+                Text = icon, FontSize = 16, Width = 26,
+                Foreground = (Brush)new BrushConverter().ConvertFromString(color)!,
+                VerticalAlignment = VerticalAlignment.Center,
             };
-            Grid.SetColumn(ft, 0); Grid.SetRow(ft, i + 1); grid.Children.Add(ft);
+            DockPanel.SetDock(iconTb, Dock.Left);
+            featPanel.Children.Add(iconTb);
+            featPanel.Children.Add(new TextBlock
+            {
+                Text = feat, Foreground = B("Text", "#E6E6E6"), FontSize = 15, FontWeight = FontWeights.SemiBold,
+                TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center,
+            });
+            Grid.SetColumn(featPanel, 0); Grid.SetRow(featPanel, i + 1); grid.Children.Add(featPanel);
 
             TextBlock Mark(bool has) => new()
             {
-                Text = has ? "✓" : "—", TextAlignment = TextAlignment.Center, FontSize = 15,
+                Text = has ? "✓" : "—", TextAlignment = TextAlignment.Center, FontSize = 17,
                 FontWeight = has ? FontWeights.Bold : FontWeights.Normal,
                 Foreground = has ? B("Good", "#5BBF73") : B("Muted", "#9A9A9A"),
-                Margin = new Thickness(0, 3, 0, 3),
+                Margin = new Thickness(0, 4, 0, 4),
             };
             var fm = Mark(free); Grid.SetColumn(fm, 1); Grid.SetRow(fm, i + 1); grid.Children.Add(fm);
             var pm = Mark(pro); Grid.SetColumn(pm, 2); Grid.SetRow(pm, i + 1); grid.Children.Add(pm);
@@ -807,7 +976,7 @@ public partial class MainWindow : Window
 
         var win = new Window
         {
-            Title = "Password Required",
+            Title = Loc.Instance["Pw_Title"],
             Width = 400, Height = 220,
             Owner = this,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
@@ -822,7 +991,7 @@ public partial class MainWindow : Window
 
         var label = new TextBlock
         {
-            Text = "Enter the password to unlock Shoyru's Custom Addons:",
+            Text = Loc.Instance["Pw_Prompt"],
             Foreground = B("Text", "#E6E6E6"), TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 10),
         };
@@ -843,9 +1012,9 @@ public partial class MainWindow : Window
             Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(0, 16, 0, 0),
         };
-        var ok = new Button { Content = "Unlock", Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+        var ok = new Button { Content = Loc.Instance["Pw_Unlock"], Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
         if (TryFindResource("Primary") is Style ps) ok.Style = ps;
-        var cancel = new Button { Content = "Cancel", IsCancel = true };
+        var cancel = new Button { Content = Loc.Instance["Pw_Cancel"], IsCancel = true };
         if (TryFindResource("Ghost") is Style gs) cancel.Style = gs;
         buttons.Children.Add(ok); buttons.Children.Add(cancel);
         Grid.SetRow(buttons, 3); grid.Children.Add(buttons);
@@ -854,7 +1023,7 @@ public partial class MainWindow : Window
         {
             if (_vm.CustomAddonsUnlocked) return;
             if (AccessGate.IsCorrect(pw.Password)) { _vm.CustomAddonsUnlocked = true; win.DialogResult = true; }
-            else { error.Text = "Incorrect password. Try again."; error.Visibility = Visibility.Visible; pw.Clear(); pw.Focus(); }
+            else { error.Text = Loc.Instance["Pw_Incorrect"]; error.Visibility = Visibility.Visible; pw.Clear(); pw.Focus(); }
         }
         ok.Click += (_, _) => Attempt();
 
@@ -867,7 +1036,7 @@ public partial class MainWindow : Window
     private void ShowWhatsNew()
     {
         var notes = string.IsNullOrWhiteSpace(_vm.AppUpdateNotes)
-            ? "(No release notes were provided for this version.)"
+            ? Loc.Instance["Rn_NoNotes"]
             : _vm.AppUpdateNotes.Trim();
 
         Brush B(string key, string fallback) =>
@@ -875,7 +1044,7 @@ public partial class MainWindow : Window
 
         var win = new Window
         {
-            Title = $"Release Notes - v{_vm.AppUpdateVersion}",
+            Title = string.Format(Loc.Instance["Rn_Title"], _vm.AppUpdateVersion),
             Width = 520, MinWidth = 360,
             SizeToContent = SizeToContent.Height,   // grow/shrink to fit the notes; long notes cap via the scroller
             MaxHeight = 640,
@@ -893,7 +1062,7 @@ public partial class MainWindow : Window
 
         var header = new TextBlock
         {
-            Text = $"Release Notes — v{_vm.AppUpdateVersion}",
+            Text = string.Format(Loc.Instance["Rn_Header"], _vm.AppUpdateVersion),
             Foreground = B("Text", "#E6E6E6"),
             FontSize = 20, FontWeight = FontWeights.Bold,
             Margin = new Thickness(0, 0, 0, 12),
@@ -924,10 +1093,10 @@ public partial class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Right,
             Margin = new Thickness(0, 12, 0, 0),
         };
-        var updateBtn = new Button { Content = "Update now", Margin = new Thickness(0, 0, 8, 0) };
+        var updateBtn = new Button { Content = Loc.Instance["Rn_UpdateNow"], Margin = new Thickness(0, 0, 8, 0) };
         if (TryFindResource("Update") is Style us) updateBtn.Style = us;
         updateBtn.Click += async (_, _) => { win.Close(); await _vm.DownloadAndApplyUpdateAsync(); };
-        var closeBtn = new Button { Content = "Close", IsCancel = true, IsDefault = true };
+        var closeBtn = new Button { Content = Loc.Instance["PT_Close"], IsCancel = true, IsDefault = true };
         if (TryFindResource("Ghost") is Style gs) closeBtn.Style = gs;
         closeBtn.Click += (_, _) => win.Close();
         buttons.Children.Add(updateBtn);

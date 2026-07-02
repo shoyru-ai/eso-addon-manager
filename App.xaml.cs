@@ -26,9 +26,11 @@ public partial class App : Application
         // With a custom Main, StartupEventArgs.Args isn't populated — read the real command line.
         var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
 
-        // PPE/staging channel: receive pre-release builds. Persists across updates (Velopack relaunches
-        // with the original args).
-        var ppe = args.Any(a => a.Equals("--ppe", StringComparison.OrdinalIgnoreCase));
+        // PPE/staging channel: receive pre-release builds. Triggered by --ppe OR by being installed under
+        // the separate PPE Velopack identity (install path contains "Shoyru.AddonSuite.PPE") — the latter
+        // makes it robust even though Velopack-generated shortcuts don't carry the --ppe arg.
+        var ppe = args.Any(a => a.Equals("--ppe", StringComparison.OrdinalIgnoreCase))
+                  || AppContext.BaseDirectory.Contains("Shoyru.AddonSuite.PPE", StringComparison.OrdinalIgnoreCase);
 
         // Optional folder override (e.g. a clean sandbox AddOns folder for testing).
         var addonsOverride = CliArgs.GetOption(args, "--addons");

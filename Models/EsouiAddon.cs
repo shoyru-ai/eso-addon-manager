@@ -35,4 +35,9 @@ public class EsouiAddon : ObservableObject
 
     private bool _isInstalled;
     public bool IsInstalled { get => _isInstalled; set => SetProperty(ref _isInstalled, value); }
+
+    private string _matchReason = "";
+    /// <summary>Transient: when this entry is shown as an AI "Describe" result, a one-line reason it matched
+    /// the user's description. Empty for normal browsing.</summary>
+    public string MatchReason { get => _matchReason; set => SetProperty(ref _matchReason, value); }
 }

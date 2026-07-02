@@ -12,6 +12,10 @@ public class AppSettings
     /// <summary>UI theme: "dark" (default) or "light". Switching is a Pro feature.</summary>
     public string Theme { get; set; } = "dark";
 
+    /// <summary>UI language code ("en"/"es"/"de"/"fr"/"pt"). Empty = not chosen yet → first-run picker shows
+    /// (defaulting to the OS language if supported).</summary>
+    public string Language { get; set; } = "";
+
     /// <summary>Pro: when true, the app updates all out-of-date addons automatically on launch.</summary>
     public bool AutoUpdateOnLaunch { get; set; } = false;
 

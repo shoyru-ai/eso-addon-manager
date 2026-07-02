@@ -46,26 +46,26 @@ public partial class ProToolsWindow : Window
 
     private void ChooseSyncFolder_Click(object sender, RoutedEventArgs e)
     {
-        var dialog = new OpenFolderDialog { Title = "Choose a sync folder (inside your cloud drive)" };
+        var dialog = new OpenFolderDialog { Title = Services.Loc.Instance["PT_ChooseSyncTitle"] };
         if (_vm.HasSyncFolder && System.IO.Directory.Exists(_vm.SyncFolder)) dialog.InitialDirectory = _vm.SyncFolder;
         if (dialog.ShowDialog(this) == true) _vm.SetSyncFolder(dialog.FolderName);
     }
 
     private async void SyncPush_Click(object sender, RoutedEventArgs e)
     {
-        if (!Confirm("Push this PC's addons + settings to the sync folder? This overwrites the synced copy.")) return;
+        if (!Confirm(Services.Loc.Instance["PT_ConfirmPush"])) return;
         await _vm.SyncPushAsync();
     }
 
     private async void SyncPull_Click(object sender, RoutedEventArgs e)
     {
-        if (!Confirm("Pull the synced addons + settings onto this PC?")) return;
+        if (!Confirm(Services.Loc.Instance["PT_ConfirmPull"])) return;
         await _vm.SyncPullAsync(RemoveExtrasCheck.IsChecked == true);
     }
 
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
     private bool Confirm(string message) =>
-        MessageBox.Show(this, message, "Shoyru Addon Suite — Pro Tools",
+        MessageBox.Show(this, message, "Shoyru's Addon Suite — Pro Tools",
             MessageBoxButton.OKCancel, MessageBoxImage.Question) == MessageBoxResult.OK;
 }

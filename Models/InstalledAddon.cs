@@ -55,11 +55,8 @@ public class InstalledAddon : ObservableObject
         ? DateTimeOffset.FromUnixTimeMilliseconds(_lastUpdateMs).LocalDateTime.ToString("yyyy-MM-dd")
         : "";
 
-    // Addon updates are a Pro feature. The VM sets ProUpdates = IsPro on each addon.
-    private bool _proUpdates;
-    public bool ProUpdates { get => _proUpdates; set { if (SetProperty(ref _proUpdates, value)) OnPropertyChanged(nameof(ShowUpdate)); } }
-    /// <summary>Show the Update button only for Pro users who have an available update.</summary>
-    public bool ShowUpdate => ProUpdates && UpdateAvailable;
+    /// <summary>Show the Update button whenever an update is available (updating is free).</summary>
+    public bool ShowUpdate => UpdateAvailable;
 
     /// <summary>The ESOUI version we recorded at install/update time (empty for addons installed outside the app).</summary>
     private string _recordedVersion = "";

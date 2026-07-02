@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:b="clr-namespace:EsoAddons.Behaviors"
         xmlns:mvvm="clr-namespace:EsoAddons.Mvvm"
-        Title="{Binding AppVersion, StringFormat='Shoyru Addon Suite {0}'}" Height="760" Width="1240"
+        xmlns:loc="clr-namespace:EsoAddons.Services"
+        Title="{Binding AppVersion, StringFormat='Shoyru\'s Addon Suite {0}'}" Height="760" Width="1240"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Bg}" FontFamily="Segoe UI Variable Text, Segoe UI">
     <Window.Resources>
@@ -72,18 +73,18 @@
                 <!-- idle: message + buttons -->
                 <DockPanel Visibility="{Binding IsUpdating, Converter={StaticResource InvBoolToVis}}">
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                        <Button Content="What's New" Style="{StaticResource Ghost}" Click="WhatsNew_Click" Margin="0,0,8,0"/>
-                        <Button Content="Update now" Style="{StaticResource Update}" Click="UpdateNow_Click"/>
+                        <Button Content="{loc:Tr Banner_WhatsNew}" Style="{StaticResource Ghost}" Click="WhatsNew_Click" Margin="0,0,8,0"/>
+                        <Button Content="{loc:Tr Banner_UpdateNow}" Style="{StaticResource Update}" Click="UpdateNow_Click"/>
                     </StackPanel>
-                    <TextBlock VerticalAlignment="Center" Foreground="White" FontWeight="SemiBold"><Run Text="A new version of Shoyru Addon Suite (v"/><Run Text="{Binding AppUpdateVersion}"/><Run Text=") is available."/></TextBlock>
+                    <TextBlock VerticalAlignment="Center" Foreground="White" FontWeight="SemiBold" Text="{Binding AppUpdateBannerText}"/>
                 </DockPanel>
                 <!-- downloading: progress bar -->
                 <DockPanel Visibility="{Binding IsUpdating, Converter={StaticResource BoolToVis}}">
                     <TextBlock DockPanel.Dock="Right" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"
-                               Margin="12,0,0,0" Text="{Binding UpdateProgress, StringFormat='{}{0}%'}"/>
+                               Margin="12,0,0,0" Text="{Binding ElementName=UpdateBar, Path=Value, StringFormat='{}{0:0}%'}"/>
                     <TextBlock DockPanel.Dock="Left" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"
-                               Margin="0,0,12,0" Text="Downloading update…"/>
-                    <ProgressBar Height="10" Minimum="0" Maximum="100" Value="{Binding UpdateProgress}"
+                               Margin="0,0,12,0" Text="{loc:Tr Banner_Downloading}"/>
+                    <ProgressBar x:Name="UpdateBar" Height="10" Minimum="0" Maximum="100" b:SmoothProgress.Target="{Binding UpdateProgress}"
                                  Background="#33FFFFFF" Foreground="White" BorderThickness="0" VerticalAlignment="Center"/>
                 </DockPanel>
             </Grid>
@@ -97,13 +98,13 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <StackPanel Grid.Column="0" Orientation="Horizontal">
-                <TextBlock Text="Shoyru Addon Suite" FontSize="24" FontWeight="Bold"/>
+                <TextBlock Text="Shoyru's Addon Suite" FontSize="24" FontWeight="Bold"/>
                 <Border Background="{DynamicResource PanelAlt}" CornerRadius="4" Padding="6,1" Margin="10,0,0,0" VerticalAlignment="Center">
                     <TextBlock Text="{Binding AppVersion}" Foreground="{DynamicResource Muted}" FontSize="14" FontWeight="SemiBold"
-                               ToolTip="Running version"/>
+                               ToolTip="{loc:Tr Tip_RunningVersion}"/>
                 </Border>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0"
-                            Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}" ToolTip="Pro — verified license active on this device">
+                            Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}" ToolTip="{loc:Tr Tip_ProVerified}">
                     <Grid Width="17" Height="17">
                         <Ellipse Fill="{StaticResource Accent}"/>
                         <TextBlock Text="✓" Foreground="White" FontSize="12" FontWeight="Bold"
@@ -116,31 +117,45 @@
             <TextBlock Grid.Column="1" Text="{Binding AddonsPath}" Foreground="{DynamicResource Muted}" FontSize="14"
                        Margin="14,0,12,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" ToolTip="{Binding AddonsPath}"/>
             <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Feedback" Style="{StaticResource Ghost}" Click="Feedback_Click" Margin="0,0,8,0"
-                        ToolTip="Send feedback, an idea, or a bug report"/>
-                <Button x:Name="HelpButton" Content="?" Style="{StaticResource Ghost}" Click="ReplayWalkthrough_Click" Margin="0,0,8,0"
-                        ToolTip="Replay the walkthrough"/>
-                <Button x:Name="GetProButton" Content="Get Pro" Style="{StaticResource Update}" Click="ManageLicense_Click" Margin="0,0,8,0"
+                <!-- Prominent: Get Pro (upsell, free users only) -->
+                <Button x:Name="GetProButton" Content="{loc:Tr Btn_GetPro}" Style="{StaticResource Update}" Click="ManageLicense_Click" Margin="0,0,8,0"
                         Visibility="{Binding IsNotPro, Converter={StaticResource BoolToVis}}"/>
-                <Button Content="Manage Pro" Style="{StaticResource Ghost}" Click="ManageLicense_Click" Margin="0,0,8,0"
+                <!-- Prominent: Pro Tools (Pro users only) -->
+                <Button x:Name="ProToolsButton" Content="{loc:Tr Btn_ProTools}" Style="{StaticResource Ghost}" Click="ProTools_Click" Margin="0,0,8,0"
+                        ToolTip="{loc:Tr Tip_ProTools}"
                         Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
-                <Button x:Name="ProToolsButton" Content="⚙ Pro Tools" Style="{StaticResource Ghost}" Click="ProTools_Click" Margin="0,0,8,0"
-                        ToolTip="Profiles, backups, multi-PC sync &amp; auto-update (Pro)"
-                        Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
-                <Button Content="{Binding ThemeToggleLabel}" Style="{StaticResource Ghost}" Click="ToggleTheme_Click" Margin="0,0,8,0"
-                        ToolTip="Switch dark/light (Pro)" Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
-                <Button Content="Change folder…" Style="{StaticResource Ghost}" Click="ChangeFolder_Click" Margin="0,0,8,0"/>
-                <Button Content="Open AddOns Folder" Style="{StaticResource Ghost}" Command="{Binding OpenFolderCommand}" Margin="0,0,8,0"/>
-                <Button Content="Refresh" Style="{StaticResource Primary}" Command="{Binding RefreshCommand}"/>
+                <!-- Settings (⚙) dropdown: declutters the header — secondary actions live here -->
+                <Button x:Name="SettingsButton" Content="⚙" Style="{StaticResource Ghost}" Click="SettingsMenu_Click" Margin="0,0,8,0"
+                        FontSize="18" Padding="11,4" ToolTip="{loc:Tr Tip_Settings}">
+                    <Button.ContextMenu>
+                        <ContextMenu x:Name="SettingsContextMenu" Placement="Bottom"
+                                     DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                            <MenuItem Header="{loc:Tr Menu_ManagePro}" Click="ManageLicense_Click"
+                                      Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
+                            <MenuItem Header="{Binding ThemeToggleLabel}" Click="ToggleTheme_Click"
+                                      Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
+                            <Separator Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
+                            <MenuItem Header="{loc:Tr Menu_Feedback}" Click="Feedback_Click"/>
+                            <MenuItem Header="{loc:Tr Menu_Replay}" Click="ReplayWalkthrough_Click"/>
+                            <MenuItem Header="{loc:Tr Menu_Language}" Click="Language_Click"/>
+                            <Separator/>
+                            <MenuItem Header="{loc:Tr Menu_ChangeFolder}" Click="ChangeFolder_Click"/>
+                            <MenuItem Header="{loc:Tr Menu_OpenFolder}" Command="{Binding OpenFolderCommand}"/>
+                            <Separator/>
+                            <MenuItem Header="{loc:Tr Menu_About}" Click="About_Click"/>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+                <Button Content="{loc:Tr Btn_Refresh}" Style="{StaticResource Primary}" Command="{Binding RefreshCommand}"/>
             </StackPanel>
         </Grid>
 
         <!-- Filter -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="18,2,18,8">
-            <TextBlock Text="Show:" Foreground="{DynamicResource Muted}" Margin="0,0,8,0"/>
-            <Button Content="All" Style="{StaticResource FilterAll}" Command="{Binding SetFilterCommand}" CommandParameter="All" Margin="0,0,6,0"/>
-            <Button Content="Addons" Style="{StaticResource FilterAddons}" Command="{Binding SetFilterCommand}" CommandParameter="Addons" Margin="0,0,6,0"/>
-            <Button Content="Libraries" Style="{StaticResource FilterLibs}" Command="{Binding SetFilterCommand}" CommandParameter="Libraries"/>
+            <TextBlock Text="{loc:Tr Lbl_Show}" Foreground="{DynamicResource Muted}" Margin="0,0,8,0"/>
+            <Button Content="{loc:Tr Filter_All}" Style="{StaticResource FilterAll}" Command="{Binding SetFilterCommand}" CommandParameter="All" Margin="0,0,6,0"/>
+            <Button Content="{loc:Tr Filter_Addons}" Style="{StaticResource FilterAddons}" Command="{Binding SetFilterCommand}" CommandParameter="Addons" Margin="0,0,6,0"/>
+            <Button Content="{loc:Tr Filter_Libraries}" Style="{StaticResource FilterLibs}" Command="{Binding SetFilterCommand}" CommandParameter="Libraries"/>
         </StackPanel>
 
         <!-- Content: list + detail -->
@@ -154,7 +169,7 @@
             <!-- LISTS -->
             <TabControl x:Name="MainTabs" Grid.Column="0" Background="Transparent" BorderThickness="0" SelectionChanged="MainTabs_SelectionChanged">
                 <!-- Installed -->
-                <TabItem Header="Installed">
+                <TabItem Header="{loc:Tr Tab_Installed}">
                     <Grid Background="{DynamicResource Panel}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -164,21 +179,18 @@
                         <Border Grid.Row="0" Background="#33B4544E" BorderBrush="{StaticResource Danger}" BorderThickness="1" CornerRadius="6" Margin="12,12,12,0"
                                 Visibility="{Binding AddonsFolderFound, Converter={StaticResource InvBoolToVis}}">
                             <TextBlock Margin="10,8" TextWrapping="Wrap" Foreground="{DynamicResource Text}"
-                                       Text="Couldn't find your ESO AddOns folder. Click 'Change folder…' (top-right) and select your  …\Elder Scrolls Online\live\AddOns  folder."/>
+                                       Text="{loc:Tr Tip_FolderNotFound}"/>
                         </Border>
                         <StackPanel Grid.Row="1" Margin="12,12,12,8">
                             <DockPanel Margin="0,0,0,8">
-                                <TextBlock Text="Search:" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="0,0,8,0" DockPanel.Dock="Left"/>
+                                <TextBlock Text="{loc:Tr Search_Label}" Foreground="{DynamicResource Muted}" VerticalAlignment="Center" Margin="0,0,8,0" DockPanel.Dock="Left"/>
                                 <TextBox Text="{Binding InstalledSearchText, UpdateSourceTrigger=PropertyChanged}"
-                                         ToolTip="Filter your installed addons by name, author, or folder"/>
+                                         ToolTip="{loc:Tr Tip_FilterInstalled}"/>
                             </DockPanel>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding UpdateSummary}" FontSize="15" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
-                                <Button Content="Update All" Style="{StaticResource Update}" Command="{Binding UpdateAllCommand}" Margin="14,0,0,0"
-                                        Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
-                                <Button Content="🔒 Update All (Pro)" Style="{StaticResource Ghost}" Click="ManageLicense_Click" Margin="14,0,0,0"
-                                        ToolTip="Updating addons is a Pro feature"
-                                        Visibility="{Binding ShowProUpdateNudge, Converter={StaticResource BoolToVis}}"/>
+                                <Button x:Name="UpdateAllButton" Content="{loc:Tr Btn_UpdateAll}" Style="{StaticResource Update}" Command="{Binding UpdateAllCommand}" Margin="14,0,0,0"
+                                        Visibility="{Binding AnyUpdates, Converter={StaticResource BoolToVis}}"/>
                             </StackPanel>
                             <TextBlock Text="{Binding MissingDepsSummary}" Foreground="{StaticResource Danger}" FontSize="14" Margin="0,6,0,0"
                                        TextWrapping="Wrap" Visibility="{Binding AnyMissingDeps, Converter={StaticResource BoolToVis}}"/>
@@ -192,7 +204,7 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="Addon" Width="2*" SortMemberPath="Title">
+                                <DataGridTemplateColumn Header="{loc:Tr Col_Addon}" Width="2*" SortMemberPath="Title">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal">
@@ -205,21 +217,21 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Installed" Binding="{Binding DisplayVersion}" Width="*"/>
-                                <DataGridTextColumn Header="Latest" Binding="{Binding LatestVersion}" Width="*"/>
-                                <DataGridTextColumn Header="Released" Binding="{Binding LastUpdated}" SortMemberPath="LastUpdateMs" Width="*"/>
-                                <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="*"
+                                <DataGridTextColumn Header="{loc:Tr Col_Installed}" Binding="{Binding DisplayVersion}" Width="*"/>
+                                <DataGridTextColumn Header="{loc:Tr Col_Latest}" Binding="{Binding LatestVersion}" Width="*"/>
+                                <DataGridTextColumn Header="{loc:Tr Col_Released}" Binding="{Binding LastUpdated}" SortMemberPath="LastUpdateMs" Width="*"/>
+                                <DataGridTextColumn Header="{loc:Tr Col_Category}" Binding="{Binding Category}" Width="*"
                                                     Visibility="{Binding Data.IsPro, Source={StaticResource VmProxy}, Converter={StaticResource BoolToVis}}"/>
                                 <DataGridTemplateColumn Header="" Width="Auto" MinWidth="170" CanUserSort="False">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                                 <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}" FontSize="14" Margin="0,0,8,0"/>
-                                                <Button Content="Update" Style="{StaticResource Update}" Padding="10,4" Margin="0,0,6,0"
+                                                <Button Content="{loc:Tr Btn_Update}" Style="{StaticResource Update}" Padding="10,4" Margin="0,0,6,0"
                                                         Visibility="{Binding ShowUpdate, Converter={StaticResource BoolToVis}}"
                                                         Command="{Binding DataContext.UpdateCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                         CommandParameter="{Binding}"/>
-                                                <Button Content="Remove" Style="{StaticResource Ghost}" Padding="10,4"
+                                                <Button Content="{loc:Tr Btn_Remove}" Style="{StaticResource Ghost}" Padding="10,4"
                                                         Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                         CommandParameter="{Binding}"/>
                                             </StackPanel>
@@ -232,7 +244,7 @@
                 </TabItem>
 
                 <!-- Browse -->
-                <TabItem Header="Browse ESOUI">
+                <TabItem Header="{loc:Tr Tab_Browse}">
                     <Grid Background="{DynamicResource Panel}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="200" MinWidth="120"/>
@@ -242,7 +254,7 @@
 
                         <!-- category sidebar -->
                         <DockPanel Grid.Column="0" Margin="8,12,4,8">
-                            <TextBlock DockPanel.Dock="Top" Text="CATEGORIES" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="8,0,0,6"/>
+                            <TextBlock DockPanel.Dock="Top" Text="{loc:Tr Lbl_Categories}" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="8,0,0,6"/>
                             <ListBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}" HorizontalContentAlignment="Stretch">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
@@ -257,7 +269,7 @@
                                       Background="{DynamicResource Border}" ResizeBehavior="PreviousAndNext"
                                       ResizeDirection="Columns" Cursor="SizeWE"/>
 
-                        <Grid Grid.Column="2">
+                        <Grid Grid.Column="2" x:Name="BrowsePane">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
@@ -268,18 +280,52 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
+                                <TextBox Grid.Column="0" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="{loc:Tr Tip_BrowseSearch}">
                                     <TextBox.InputBindings>
                                         <KeyBinding Key="Return" Command="{Binding SearchCommand}"/>
                                     </TextBox.InputBindings>
                                 </TextBox>
-                                <Button Grid.Column="1" Content="Search" Style="{StaticResource Primary}" Margin="8,0,0,0" Command="{Binding SearchCommand}"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="8,0,0,0">
+                                    <Button Content="{loc:Tr Btn_Search}" Style="{StaticResource Primary}" Command="{Binding SearchCommand}"/>
+                                    <!-- AI semantic search — same box, different use. Pro-gated. -->
+                                    <Button x:Name="DescribeButton" Content="{loc:Tr Btn_Describe}" Style="{StaticResource Update}" Margin="8,0,0,0"
+                                            Command="{Binding DescribeCommand}"
+                                            ToolTip="{loc:Tr Tip_DescribeBtn}"
+                                            Visibility="{Binding IsPro, Converter={StaticResource BoolToVis}}"/>
+                                    <Button x:Name="DescribeProButton" Content="{loc:Tr Btn_DescribePro}" Style="{StaticResource Ghost}" Margin="8,0,0,0"
+                                            Click="ManageLicense_Click"
+                                            ToolTip="{loc:Tr Tip_DescribeProBtn}"
+                                            Visibility="{Binding IsNotPro, Converter={StaticResource BoolToVis}}"/>
+                                    <!-- In-progress indicator: pulsing "● ● ●" while a find is running. -->
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0"
+                                                Visibility="{Binding IsFinding, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="{loc:Tr Tip_Searching}" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="● ● ●" Foreground="{StaticResource Accent}" VerticalAlignment="Center" FontSize="13">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsVisible" Value="True">
+                                                            <Trigger.EnterActions>
+                                                                <BeginStoryboard>
+                                                                    <Storyboard RepeatBehavior="Forever">
+                                                                        <DoubleAnimation Storyboard.TargetProperty="Opacity" From="0.3" To="1" Duration="0:0:0.6" AutoReverse="True"/>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </Trigger.EnterActions>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </StackPanel>
                             </Grid>
                             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="6,0,12,8">
-                                <TextBlock Text="Sort:" Foreground="{DynamicResource Muted}" Margin="0,0,8,0"/>
-                                <Button Content="Most Downloaded" Style="{StaticResource SortDownloads}" Command="{Binding SetSortCommand}" CommandParameter="Downloads" Margin="0,0,6,0"/>
-                                <Button Content="Recently Updated" Style="{StaticResource SortRecent}" Command="{Binding SetSortCommand}" CommandParameter="Recent" Margin="0,0,6,0"/>
-                                <Button Content="Name" Style="{StaticResource SortName}" Command="{Binding SetSortCommand}" CommandParameter="Name"/>
+                                <TextBlock Text="{loc:Tr Sort_Label}" Foreground="{DynamicResource Muted}" Margin="0,0,8,0"/>
+                                <Button Content="{loc:Tr Sort_Downloads}" Style="{StaticResource SortDownloads}" Command="{Binding SetSortCommand}" CommandParameter="Downloads" Margin="0,0,6,0"/>
+                                <Button Content="{loc:Tr Sort_Recent}" Style="{StaticResource SortRecent}" Command="{Binding SetSortCommand}" CommandParameter="Recent" Margin="0,0,6,0"/>
+                                <Button Content="{loc:Tr Sort_Name}" Style="{StaticResource SortName}" Command="{Binding SetSortCommand}" CommandParameter="Name"/>
                             </StackPanel>
                         <DataGrid Grid.Row="2" ItemsSource="{Binding BrowseView}" SelectedItem="{Binding SelectedBrowse}" Margin="6,0,6,6">
                             <DataGrid.Columns>
@@ -290,23 +336,45 @@
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Addon" Binding="{Binding Title}" Width="2*"/>
-                                <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="*"/>
-                                <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="*"/>
-                                <DataGridTextColumn Header="Released" Binding="{Binding LastUpdated}" SortMemberPath="LastUpdateMs" Width="*"/>
-                                <DataGridTextColumn Header="Downloads" Binding="{Binding DownloadsDisplay}" SortMemberPath="Downloads" Width="*"/>
+                                <DataGridTemplateColumn Header="{loc:Tr Col_Addon}" Width="2*" SortMemberPath="Title">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+                                                <!-- AI Describe results only: the one-line "why it matched" -->
+                                                <TextBlock Text="{Binding MatchReason}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                           Foreground="{DynamicResource Muted}" ToolTip="{Binding MatchReason}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding MatchReason}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="{loc:Tr Col_Author}" Binding="{Binding Author}" Width="*"/>
+                                <DataGridTextColumn Header="{loc:Tr Col_Version}" Binding="{Binding Version}" Width="*"/>
+                                <DataGridTextColumn Header="{loc:Tr Col_Released}" Binding="{Binding LastUpdated}" SortMemberPath="LastUpdateMs" Width="*"/>
+                                <DataGridTextColumn Header="{loc:Tr Col_Downloads}" Binding="{Binding DownloadsDisplay}" SortMemberPath="Downloads" Width="*"/>
                                 <DataGridTemplateColumn Header="" Width="Auto" MinWidth="100" CanUserSort="False">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                                 <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}" FontSize="14" Margin="0,0,8,0"/>
-                                                <TextBlock Text="✓ Installed" Foreground="{StaticResource Good}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                <TextBlock Text="{loc:Tr Badge_Installed}" Foreground="{StaticResource Good}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"
                                                            Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVis}}"/>
-                                                <Button Content="Remove" Style="{StaticResource Ghost}" Padding="10,4"
+                                                <Button Content="{loc:Tr Btn_Remove}" Style="{StaticResource Ghost}" Padding="10,4"
                                                         Visibility="{Binding IsInstalled, Converter={StaticResource BoolToVis}}"
                                                         Command="{Binding DataContext.RemoveBrowseCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                         CommandParameter="{Binding}"/>
-                                                <Button Content="Install" Style="{StaticResource Primary}" Padding="10,4"
+                                                <Button Content="{loc:Tr Btn_Install}" Style="{StaticResource Primary}" Padding="10,4"
                                                         Visibility="{Binding IsInstalled, Converter={StaticResource InvBoolToVis}}"
                                                         Command="{Binding DataContext.InstallCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                         CommandParameter="{Binding}"/>
@@ -411,7 +479,7 @@
             <!-- DETAIL PANE -->
             <Border x:Name="DetailPane" Grid.Column="2" Background="{DynamicResource PanelAlt}" BorderBrush="{DynamicResource Border}" BorderThickness="1,0,0,0" Margin="8,0,0,0">
                 <Grid>
-                    <TextBlock Text="Select an addon to see details." Foreground="{DynamicResource Muted}"
+                    <TextBlock Text="{loc:Tr Msg_SelectAddon}" Foreground="{DynamicResource Muted}"
                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                Visibility="{Binding HasDetail, Converter={StaticResource InvBoolToVis}}" />
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16,14"
@@ -428,41 +496,41 @@
 
                             <!-- actions -->
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                <Button Content="Install" Style="{StaticResource Primary}" Margin="0,0,6,0"
+                                <Button Content="{loc:Tr Btn_Install}" Style="{StaticResource Primary}" Margin="0,0,6,0"
                                         Visibility="{Binding ShowInstall, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding InstallCommand}" CommandParameter="{Binding DetailInstallTarget}"/>
-                                <TextBlock Text="✓ Installed" Foreground="{StaticResource Good}" FontWeight="SemiBold"
+                                <TextBlock Text="{loc:Tr Badge_Installed}" Foreground="{StaticResource Good}" FontWeight="SemiBold"
                                            VerticalAlignment="Center" Margin="0,0,8,0"
                                            Visibility="{Binding BrowseDetailInstalled, Converter={StaticResource BoolToVis}}"/>
-                                <Button Content="Remove" Style="{StaticResource Ghost}" Margin="0,0,6,0"
+                                <Button Content="{loc:Tr Btn_Remove}" Style="{StaticResource Ghost}" Margin="0,0,6,0"
                                         Visibility="{Binding BrowseDetailInstalled, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding RemoveBrowseCommand}" CommandParameter="{Binding DetailInstallTarget}"/>
-                                <Button Content="Update" Style="{StaticResource Update}" Margin="0,0,6,0"
+                                <Button Content="{loc:Tr Btn_Update}" Style="{StaticResource Update}" Margin="0,0,6,0"
                                         Visibility="{Binding DetailUpdateAvailable, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding UpdateCommand}" CommandParameter="{Binding DetailRemoveTarget}"/>
-                                <Button Content="Remove" Style="{StaticResource Ghost}" Margin="0,0,6,0"
+                                <Button Content="{loc:Tr Btn_Remove}" Style="{StaticResource Ghost}" Margin="0,0,6,0"
                                         Visibility="{Binding ShowManage, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding RemoveCommand}" CommandParameter="{Binding DetailRemoveTarget}"/>
                                 <!-- My Addon actions -->
-                                <Button Content="Install" Style="{StaticResource Primary}" Margin="0,0,6,0"
+                                <Button Content="{loc:Tr Btn_Install}" Style="{StaticResource Primary}" Margin="0,0,6,0"
                                         Visibility="{Binding MyDetailShowInstall, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding InstallMyAddonCommand}" CommandParameter="{Binding DetailMyAddonTarget}"/>
-                                <Button Content="Update" Style="{StaticResource Update}" Margin="0,0,6,0"
+                                <Button Content="{loc:Tr Btn_Update}" Style="{StaticResource Update}" Margin="0,0,6,0"
                                         Visibility="{Binding MyDetailUpdateAvailable, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding InstallMyAddonCommand}" CommandParameter="{Binding DetailMyAddonTarget}"/>
-                                <Button Content="Remove" Style="{StaticResource Ghost}" Margin="0,0,6,0"
+                                <Button Content="{loc:Tr Btn_Remove}" Style="{StaticResource Ghost}" Margin="0,0,6,0"
                                         Visibility="{Binding MyDetailShowRemove, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding RemoveMyAddonCommand}" CommandParameter="{Binding DetailMyAddonTarget}"/>
-                                <Button Content="ESOUI Page" Style="{StaticResource Ghost}"
+                                <Button Content="{loc:Tr Btn_EsouiPage}" Style="{StaticResource Ghost}"
                                         Visibility="{Binding HasDetailPage, Converter={StaticResource BoolToVis}}"
                                         Command="{Binding OpenPageCommand}"/>
                             </StackPanel>
 
                             <!-- category assignment (Pro; installed addons only) -->
                             <StackPanel Visibility="{Binding ShowCategoryEditor, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
-                                <TextBlock Text="CATEGORY" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+                                <TextBlock Text="{loc:Tr Lbl_Category}" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
                                 <DockPanel>
-                                    <Button DockPanel.Dock="Right" Content="Set" Style="{StaticResource Update}" Padding="12,4" Margin="6,0,0,0"
+                                    <Button DockPanel.Dock="Right" Content="{loc:Tr Btn_Set}" Style="{StaticResource Update}" Padding="12,4" Margin="6,0,0,0"
                                             Click="SetCategory_Click"/>
                                     <ComboBox x:Name="CategoryCombo" IsEditable="True" ItemsSource="{Binding KnownCategories}"
                                               Text="{Binding DetailCategoryInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
@@ -474,7 +542,7 @@
 
                             <!-- dependencies — status list + one-click Get (free; auto-install on install is Pro) -->
                             <StackPanel Visibility="{Binding HasDependencies, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
-                                <TextBlock Text="DEPENDENCIES" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+                                <TextBlock Text="{loc:Tr Lbl_Dependencies}" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
                                 <ItemsControl ItemsSource="{Binding DetailDependencies}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -503,7 +571,7 @@
                                                     <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
                                                     <TextBlock Text="{Binding StateText}" Foreground="{DynamicResource Muted}" FontSize="13"/>
                                                 </StackPanel>
-                                                <Button Grid.Column="2" Content="Get" Style="{StaticResource Update}" Padding="10,3" FontSize="13" VerticalAlignment="Center"
+                                                <Button Grid.Column="2" Content="{loc:Tr Btn_Install}" Style="{StaticResource Update}" Padding="10,3" FontSize="13" VerticalAlignment="Center"
                                                         Command="{Binding DataContext.InstallDepCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding Name}"
                                                         Visibility="{Binding ShowGet, Converter={StaticResource BoolToVis}}"/>
@@ -516,13 +584,13 @@
 
                             <!-- dependencies note (browse mode — ESOUI API doesn't expose deps pre-install) -->
                             <StackPanel Visibility="{Binding ShowDepAutoNote, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
-                                <TextBlock Text="DEPENDENCIES" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
-                                <TextBlock Text="Required libraries are installed automatically with Pro." TextWrapping="Wrap" Foreground="{DynamicResource Muted}" FontSize="14"/>
+                                <TextBlock Text="{loc:Tr Lbl_Dependencies}" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+                                <TextBlock Text="{loc:Tr Note_AutoDeps}" TextWrapping="Wrap" Foreground="{DynamicResource Muted}" FontSize="14"/>
                             </StackPanel>
 
                             <!-- what's new / changelog -->
                             <StackPanel Visibility="{Binding HasChangeLog, Converter={StaticResource BoolToVis}}" Margin="0,0,0,12">
-                                <TextBlock Text="WHAT'S NEW" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+                                <TextBlock Text="{loc:Tr Lbl_WhatsNew}" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
                                 <Border Background="{DynamicResource Bg}" CornerRadius="6" Padding="10" MaxHeight="200">
                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                                         <TextBlock Text="{Binding DetailChangeLog}" TextWrapping="Wrap" Foreground="{DynamicResource Text}" FontSize="14" LineHeight="17"/>
@@ -531,7 +599,13 @@
                             </StackPanel>
 
                             <!-- description -->
-                            <TextBlock Text="DESCRIPTION" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,6"/>
+                            <DockPanel Margin="0,0,0,6">
+                                <Button DockPanel.Dock="Right" Content="{Binding TranslateLabel}" Command="{Binding TranslateDetailCommand}"
+                                        Visibility="{Binding CanTranslateDetail, Converter={StaticResource BoolToVis}}"
+                                        Style="{StaticResource Ghost}" Padding="9,2" FontSize="12" VerticalAlignment="Center"
+                                        ToolTip="Translate this description into your language (Pro)"/>
+                                <TextBlock Text="{loc:Tr Lbl_Description}" Foreground="{DynamicResource Muted}" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center"/>
+                            </DockPanel>
                             <TextBlock Text="{Binding DetailDescription}" TextWrapping="Wrap" Foreground="{DynamicResource Text}" LineHeight="18"/>
                         </StackPanel>
                     </ScrollViewer>
@@ -543,7 +617,7 @@
         <Border Grid.Row="4" Background="{DynamicResource PanelAlt}" BorderBrush="{DynamicResource Border}" BorderThickness="0,1,0,0">
             <Grid Margin="16,8">
                 <TextBlock Text="{Binding Status}" Foreground="{DynamicResource Muted}" FontSize="14"/>
-                <TextBlock Text="Working…" Foreground="{StaticResource Accent}" FontSize="14" HorizontalAlignment="Right"
+                <TextBlock Text="{loc:Tr Status_Working}" Foreground="{StaticResource Accent}" FontSize="14" HorizontalAlignment="Right"
                            Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"/>
             </Grid>
         </Border>
@@ -554,19 +628,25 @@
             <Border x:Name="WalkSpot" BorderBrush="{StaticResource Accent}" BorderThickness="2" CornerRadius="8"
                     HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" Visibility="Collapsed"/>
             <Border x:Name="WalkCard" Background="{DynamicResource Panel}" BorderBrush="{StaticResource Accent}" BorderThickness="1"
-                    CornerRadius="10" Padding="20" MaxWidth="400" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <TextBlock x:Name="WalkStepCounter" Foreground="{DynamicResource Muted}" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6"/>
-                    <TextBlock x:Name="WalkTitle" Foreground="{DynamicResource Text}" FontSize="18" FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                    <TextBlock x:Name="WalkBody" Foreground="{DynamicResource Text}" FontSize="14" TextWrapping="Wrap" LineHeight="20"/>
-                    <DockPanel Margin="0,18,0,0">
-                        <Button x:Name="WalkSkip" DockPanel.Dock="Left" Content="Skip tour" Style="{StaticResource Ghost}" Click="WalkSkip_Click"/>
+                    CornerRadius="10" Padding="20" Margin="40" MaxWidth="400"
+                    MaxHeight="{Binding ActualHeight, ElementName=WalkthroughHost}"
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                <DockPanel>
+                    <!-- Nav is pinned to the bottom so the Next button is ALWAYS visible, even when a translated
+                         body runs long; the body scrolls instead of pushing the buttons off-screen. -->
+                    <DockPanel DockPanel.Dock="Bottom" Margin="0,18,0,0">
+                        <Button x:Name="WalkSkip" DockPanel.Dock="Left" Content="{loc:Tr Nav_Skip}" Style="{StaticResource Ghost}" Click="WalkSkip_Click"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button x:Name="WalkBack" Content="Back" Style="{StaticResource Ghost}" Margin="0,0,8,0" Click="WalkBack_Click"/>
-                            <Button x:Name="WalkNext" Content="Next ▶" Style="{StaticResource Primary}" Click="WalkNext_Click"/>
+                            <Button x:Name="WalkBack" Content="{loc:Tr Nav_Back}" Style="{StaticResource Ghost}" Margin="0,0,8,0" Click="WalkBack_Click"/>
+                            <Button x:Name="WalkNext" Content="{loc:Tr Nav_Next}" Style="{StaticResource Primary}" Click="WalkNext_Click"/>
                         </StackPanel>
                     </DockPanel>
-                </StackPanel>
+                    <TextBlock x:Name="WalkStepCounter" DockPanel.Dock="Top" Foreground="{DynamicResource Muted}" FontSize="12" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <TextBlock x:Name="WalkTitle" DockPanel.Dock="Top" Foreground="{DynamicResource Text}" FontSize="18" FontWeight="Bold" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <TextBlock x:Name="WalkBody" Foreground="{DynamicResource Text}" FontSize="14" TextWrapping="Wrap" LineHeight="20"/>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
         </Grid>
     </Grid>

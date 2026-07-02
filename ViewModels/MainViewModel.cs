@@ -26,6 +26,9 @@ public class MainViewModel : ObservableObject
     private LicenseInfo _licenseInfo = new();
     private IReadOnlyList<EsouiAddon> _catalog = Array.Empty<EsouiAddon>();
     private Dictionary<string, EsouiAddon> _catalogByDir = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, EsouiAddon> _catalogById = new();
+    private readonly AddonFinderClient _finder = new();
+    private readonly AddonTranslateClient _translator = new();
     private Dictionary<string, string> _categoryTitlesById = new();
     /// <summary>All addon/lib folder names present anywhere (top-level + bundled/nested) — used so a
     /// dependency satisfied by a bundled library isn't reported as missing.</summary>
@@ -55,16 +58,12 @@ public class MainViewModel : ObservableObject
         private set { if (SetProperty(ref _isPro, value)) ApplyProState(); }
     }
     public bool IsNotPro => !IsPro;
-    /// <summary>Free-tier nudge in the Installed tab: shown when updates exist but the user isn't Pro.</summary>
-    public bool ShowProUpdateNudge => IsNotPro && UpdateCount > 0;
 
-    /// <summary>Pushes the Pro state onto the addon lists (updates are Pro) and refreshes gated UI.</summary>
+    /// <summary>Refreshes Pro-gated UI after the license state changes. Updating addons is free,
+    /// so it is no longer gated here — only dependency auto-install, categories, and theme are.</summary>
     private void ApplyProState()
     {
-        foreach (var a in Installed) a.ProUpdates = IsPro;
-        foreach (var p in MyAddons) p.ProUpdates = IsPro;
         OnPropertyChanged(nameof(IsNotPro));
-        OnPropertyChanged(nameof(ShowProUpdateNudge));
         OnPropertyChanged(nameof(ShowDepsList));
         OnPropertyChanged(nameof(ShowDepsFreeNote));
         OnPropertyChanged(nameof(ShowCategoryEditor));
@@ -73,7 +72,7 @@ public class MainViewModel : ObservableObject
 
     // ---- theme (Pro: switch dark/light) ----
     public bool IsLightTheme => string.Equals(_settings.Theme, ThemeManager.Light, StringComparison.OrdinalIgnoreCase);
-    public string ThemeToggleLabel => IsLightTheme ? "🌙 Dark mode" : "☀ Light mode";
+    public string ThemeToggleLabel => IsLightTheme ? Loc.Instance["Status_ThemeDark"] : Loc.Instance["Status_ThemeLight"];
 
     /// <summary>Toggle dark/light. Pro only. Persists + applies live.</summary>
     public void ToggleTheme()
@@ -120,9 +119,9 @@ public class MainViewModel : ObservableObject
         get
         {
             if (!IsPro) return "";
-            if (string.IsNullOrWhiteSpace(_licenseExpiresAtUtc)) return "Lifetime — never expires";
+            if (string.IsNullOrWhiteSpace(_licenseExpiresAtUtc)) return Loc.Instance["Status_Lifetime"];
             return DateTimeOffset.TryParse(_licenseExpiresAtUtc, out var dt)
-                ? $"Valid until {dt.LocalDateTime:MMM d, yyyy}"
+                ? string.Format(Loc.Instance["Status_ValidUntil"], dt.LocalDateTime.ToString("MMM d, yyyy"))
                 : "";
         }
     }
@@ -140,22 +139,28 @@ public class MainViewModel : ObservableObject
     public async Task ManageSubscriptionAsync()
     {
         if (!IsSubscription || !_licenseInfo.HasKey) return;
-        Status = "Opening subscription portal…";
+        Status = Loc.Instance["Status_OpeningPortal"];
         var url = await _backend.GetPortalUrlAsync(_licenseInfo.Key);
-        if (string.IsNullOrEmpty(url)) { Status = "Couldn't open the portal — try again later."; return; }
+        if (string.IsNullOrEmpty(url)) { Status = Loc.Instance["Status_PortalFailed"]; return; }
         OpenUrl(url);
-        Status = "Opened your subscription portal in the browser.";
+        Status = Loc.Instance["Status_PortalOpened"];
     }
+
+    /// <summary>True when the most recent CancelSubscriptionAsync call succeeded — lets the UI trigger the
+    /// churn-feedback prompt without sniffing the (now localized) status text.</summary>
+    public bool CancellationSucceeded { get; private set; }
 
     /// <summary>Cancels the active subscription at period end (via the backend). Returns a status message.</summary>
     public async Task<string> CancelSubscriptionAsync()
     {
-        if (!IsSubscription || !_licenseInfo.HasKey) return "No subscription to cancel.";
-        Status = "Cancelling subscription…";
+        CancellationSucceeded = false;
+        if (!IsSubscription || !_licenseInfo.HasKey) return Loc.Instance["Status_NoSubToCancel"];
+        Status = Loc.Instance["Status_Cancelling"];
         var (ok, endsAt, error) = await _backend.CancelAsync(_licenseInfo.Key);
-        if (!ok) return Status = $"Couldn't cancel: {error}";
-        var when = DateTimeOffset.TryParse(endsAt, out var dt) ? dt.LocalDateTime.ToString("MMM d, yyyy") : "the end of your billing period";
-        return Status = $"Subscription cancelled — Pro stays active until {when}.";
+        if (!ok) return Status = string.Format(Loc.Instance["Status_CouldntCancel"], error);
+        var when = DateTimeOffset.TryParse(endsAt, out var dt) ? dt.LocalDateTime.ToString("MMM d, yyyy") : Loc.Instance["Status_BillingPeriodEnd"];
+        CancellationSucceeded = true;
+        return Status = string.Format(Loc.Instance["Status_SubCancelled"], when);
     }
 
     /// <summary>Validates the stored license on launch. Online check when possible; if offline, falls back to
@@ -164,6 +169,9 @@ public class MainViewModel : ObservableObject
     {
         _licenseInfo = _licenseStore.Load();
         if (!_licenseInfo.HasKey) { IsPro = false; return; }
+
+        // Offline founder license: always Pro, never phones Lemon Squeezy (so it survives the store going live).
+        if (_licenseInfo.Founder) { IsPro = true; return; }
 
         // optimistic: show cached Pro immediately, then confirm online
         IsPro = _licenseInfo.ProCached;
@@ -188,18 +196,31 @@ public class MainViewModel : ObservableObject
     public async Task<string> ActivateLicenseAsync(string key)
     {
         key = (key ?? "").Trim();
-        if (key.Length == 0) return "Enter a license key.";
-        Status = "Activating license…";
+        if (key.Length == 0) return Loc.Instance["Status_EnterKey"];
+
+        // Offline founder key (trusted beta access): grant Pro locally, no Lemon Squeezy. Survives the store
+        // going live, so beta friends keep Pro for free, permanently.
+        var founder = BusinessConfig.Current.FounderKey;
+        if (founder.Length > 0 && string.Equals(key, founder, StringComparison.Ordinal))
+        {
+            _licenseInfo = new LicenseInfo { Key = key, Founder = true, ProCached = true, LastValidatedUtc = DateTime.UtcNow };
+            _licenseStore.Save(_licenseInfo);
+            IsPro = true;
+            OnPropertyChanged(nameof(HasLicenseKey));
+            return Status = "Founder access activated — Pro unlocked. Thank you! 💙";
+        }
+
+        Status = Loc.Instance["Status_Activating"];
         var res = await _license.ActivateAsync(key);
 
         if (!string.IsNullOrEmpty(res.Error))
-            return Status = $"Couldn't activate: {res.Error}";
+            return Status = string.Format(Loc.Instance["Status_CouldntActivate"], res.Error);
         if (!res.Ok)
-            return Status = "That key couldn't be activated (it may have reached its device limit).";
+            return Status = Loc.Instance["Status_KeyDeviceLimit"];
         if (!LicenseService.ProductMatches(res.ProductId))
-            return Status = "That key isn't for Shoyru Addon Suite Pro.";
+            return Status = Loc.Instance["Status_KeyWrongProduct"];
         if (res.Status != "active")
-            return Status = $"That key is {res.Status} (not active).";
+            return Status = string.Format(Loc.Instance["Status_KeyNotActive"], res.Status);
 
         _licenseInfo = new LicenseInfo
         {
@@ -213,7 +234,7 @@ public class MainViewModel : ObservableObject
         IsPro = true;
         CaptureLicenseDetails(res);
         OnPropertyChanged(nameof(HasLicenseKey));
-        return Status = res.CustomerName.Length > 0 ? $"Pro activated — thanks, {res.CustomerName}!" : "Pro activated. Thank you!";
+        return Status = res.CustomerName.Length > 0 ? string.Format(Loc.Instance["Status_ProActivatedName"], res.CustomerName) : Loc.Instance["Status_ProActivated"];
     }
 
     /// <summary>Removes the license from this device (frees the seat).</summary>
@@ -225,7 +246,7 @@ public class MainViewModel : ObservableObject
         _licenseInfo = new LicenseInfo();
         IsPro = false;
         OnPropertyChanged(nameof(HasLicenseKey));
-        Status = "Pro license removed from this device.";
+        Status = Loc.Instance["Status_LicenseRemoved"];
     }
 
     public MainViewModel(string? addonsOverride = null, bool ppeChannel = false)
@@ -235,6 +256,12 @@ public class MainViewModel : ObservableObject
         _installer = new AddonInstaller(_client);
         _settings = _settingsStore.Load();
         ThemeManager.Apply(_settings.Theme);   // apply saved theme before the UI renders
+        // Apply saved language; if none chosen yet, default to the OS language when supported (the first-run
+        // picker still appears so the user can confirm/change). Not persisted until the user picks.
+        Loc.Instance.Lang = !string.IsNullOrEmpty(_settings.Language) ? _settings.Language
+            : (Loc.Supported(System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName)
+                ? System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName : "en");
+        _status = Loc.Instance["Status_Ready"];   // now that the language is applied, in the chosen language
         if (!string.IsNullOrWhiteSpace(addonsOverride))
         {
             // Transient override from the --addons CLI flag (e.g. a clean sandbox folder). Not persisted.
@@ -256,6 +283,8 @@ public class MainViewModel : ObservableObject
 
         RefreshCommand = new AsyncRelayCommand(_ => LoadAsync(true));
         SearchCommand = new RelayCommand(_ => ApplyBrowse());
+        DescribeCommand = new AsyncRelayCommand(_ => DescribeAsync());
+        TranslateDetailCommand = new AsyncRelayCommand(_ => ToggleTranslateDetailAsync(), _ => CanTranslateDetail);
         SetSortCommand = new RelayCommand(s => Sort = Enum.Parse<BrowseSort>((string)s!));
         InstallMyAddonCommand = new AsyncRelayCommand(a => InstallMyAddonAsync((PublishedAddon)a!), a => a is PublishedAddon);
         RemoveMyAddonCommand = new AsyncRelayCommand(a => RemoveMyAddonAsync((PublishedAddon)a!), a => a is PublishedAddon);
@@ -281,7 +310,13 @@ public class MainViewModel : ObservableObject
     private bool _appUpdateAvailable;
     public bool AppUpdateAvailable { get => _appUpdateAvailable; set => SetProperty(ref _appUpdateAvailable, value); }
     private string _appUpdateVersion = "";
-    public string AppUpdateVersion { get => _appUpdateVersion; set => SetProperty(ref _appUpdateVersion, value); }
+    public string AppUpdateVersion
+    {
+        get => _appUpdateVersion;
+        set { if (SetProperty(ref _appUpdateVersion, value)) OnPropertyChanged(nameof(AppUpdateBannerText)); }
+    }
+    /// <summary>Localized one-line update-banner message (keeps the brand name English inside the sentence).</summary>
+    public string AppUpdateBannerText => string.Format(Loc.Instance["Banner_NewVersion"], AppUpdateVersion);
     public string AppUpdateNotes { get; private set; } = "";
 
     private bool _isUpdating;
@@ -302,7 +337,7 @@ public class MainViewModel : ObservableObject
             AppUpdateNotes = info.Notes;
             AppUpdateVersion = info.Version;
             AppUpdateAvailable = true;
-            Status = $"A new version (v{info.Version}) is available.";
+            Status = string.Format(Loc.Instance["Status_NewVersion"], info.Version);
         }
         catch (Exception ex) { Diag.Log("update check failed: " + ex.Message); }
     }
@@ -313,18 +348,18 @@ public class MainViewModel : ObservableObject
         if (!AppUpdateAvailable || IsUpdating) return;
         IsUpdating = true;
         UpdateProgress = 0;
-        Status = $"Downloading v{AppUpdateVersion}…";
+        Status = string.Format(Loc.Instance["Status_Downloading"], AppUpdateVersion);
         try
         {
             await _appUpdate.DownloadAsync(p =>
                 System.Windows.Application.Current?.Dispatcher.Invoke(() => UpdateProgress = p));
-            Status = "Restarting to apply the update…";
+            Status = Loc.Instance["Status_Restarting"];
             _appUpdate.ApplyAndRestart();   // exits the process and relaunches the new version
         }
         catch (Exception ex)
         {
             IsUpdating = false;
-            Status = "Update failed: " + ex.Message;
+            Status = string.Format(Loc.Instance["Status_UpdateFailed"], ex.Message);
         }
     }
 
@@ -339,6 +374,9 @@ public class MainViewModel : ObservableObject
 
     public ICommand RefreshCommand { get; }
     public ICommand SearchCommand { get; }
+    /// <summary>AI "Describe" search — sends the search box text to the backend finder (Pro). See DescribeAsync.</summary>
+    public ICommand DescribeCommand { get; }
+    public ICommand TranslateDetailCommand { get; }
     public ICommand InstallCommand { get; }
     public ICommand RemoveBrowseCommand { get; }
     public ICommand UpdateCommand { get; }
@@ -423,11 +461,11 @@ public class MainViewModel : ObservableObject
 
     // ---- detail pane ----
     private bool _hasDetail;
-    public bool HasDetail { get => _hasDetail; set => SetProperty(ref _hasDetail, value); }
+    public bool HasDetail { get => _hasDetail; set { if (SetProperty(ref _hasDetail, value)) OnPropertyChanged(nameof(CanTranslateDetail)); } }
     private bool _detailIsInstalled;
     public bool DetailIsInstalled { get => _detailIsInstalled; set { if (SetProperty(ref _detailIsInstalled, value)) OnPropertyChanged(nameof(ShowCategoryEditor)); } }
     private string _detailTitle = "";
-    public string DetailTitle { get => _detailTitle; set => SetProperty(ref _detailTitle, value); }
+    public string DetailTitle { get => _detailTitle; set { if (SetProperty(ref _detailTitle, value)) ResetDetailTranslation(); } }
     private string _detailMeta = "";
     public string DetailMeta { get => _detailMeta; set => SetProperty(ref _detailMeta, value); }
     private string _detailImageUrl = "";
@@ -436,7 +474,7 @@ public class MainViewModel : ObservableObject
     /// <summary>All full-size screenshots for the addon on show — the enlarge viewer cycles these.</summary>
     public List<string> DetailImageUrls { get; private set; } = new();
     private string _detailDescription = "";
-    public string DetailDescription { get => _detailDescription; set => SetProperty(ref _detailDescription, value); }
+    public string DetailDescription { get => _detailDescription; set { if (SetProperty(ref _detailDescription, value)) OnPropertyChanged(nameof(CanTranslateDetail)); } }
     private string _detailChangeLog = "";
     public string DetailChangeLog { get => _detailChangeLog; set { if (SetProperty(ref _detailChangeLog, value)) OnPropertyChanged(nameof(HasChangeLog)); } }
     public bool HasChangeLog => !string.IsNullOrWhiteSpace(DetailChangeLog);
@@ -491,20 +529,22 @@ public class MainViewModel : ObservableObject
         set { if (SetProperty(ref _searchText, value)) ApplyBrowse(); }
     }
 
-    private string _status = "Ready.";
+    private string _status = Loc.Instance["Status_Ready"];
     public string Status { get => _status; set => SetProperty(ref _status, value); }
     private bool _isBusy;
     public bool IsBusy { get => _isBusy; set => SetProperty(ref _isBusy, value); }
     private int _updateCount;
-    public int UpdateCount { get => _updateCount; set { if (SetProperty(ref _updateCount, value)) { OnPropertyChanged(nameof(UpdateSummary)); OnPropertyChanged(nameof(ShowProUpdateNudge)); } } }
-    public string UpdateSummary => UpdateCount == 0 ? "All up to date" : $"{UpdateCount} update(s) available";
+    public int UpdateCount { get => _updateCount; set { if (SetProperty(ref _updateCount, value)) { OnPropertyChanged(nameof(UpdateSummary)); OnPropertyChanged(nameof(AnyUpdates)); } } }
+    public string UpdateSummary => UpdateCount == 0 ? Loc.Instance["Status_AllUpToDate"] : string.Format(Loc.Instance["Status_UpdatesAvailable"], UpdateCount);
+    /// <summary>True when at least one installed addon has an update available (drives the Update All button, free for everyone).</summary>
+    public bool AnyUpdates => UpdateCount > 0;
 
     private int _missingDepsCount;
     public int MissingDepsCount { get => _missingDepsCount; set { if (SetProperty(ref _missingDepsCount, value)) { OnPropertyChanged(nameof(AnyMissingDeps)); OnPropertyChanged(nameof(MissingDepsSummary)); } } }
     public bool AnyMissingDeps => MissingDepsCount > 0;
     public string MissingDepsSummary => MissingDepsCount == 1
-        ? "⚠ 1 installed addon is missing a required dependency"
-        : $"⚠ {MissingDepsCount} installed addons are missing required dependencies";
+        ? Loc.Instance["Status_OneMissingDep"]
+        : string.Format(Loc.Instance["Status_ManyMissingDeps"], MissingDepsCount);
 
     // ---- load ----
     public async Task LoadAsync(bool refreshCatalog = false)
@@ -512,13 +552,17 @@ public class MainViewModel : ObservableObject
         try
         {
             IsBusy = true;
-            Status = "Fetching ESOUI catalog…";
+            Status = Loc.Instance["Status_FetchingCatalog"];
             _catalog = await _client.GetCatalogAsync(refreshCatalog);
             _catalogByDir = new Dictionary<string, EsouiAddon>(StringComparer.OrdinalIgnoreCase);
+            _catalogById = new Dictionary<string, EsouiAddon>();
             foreach (var c in _catalog)
+            {
+                _catalogById[c.Id] = c;                            // for mapping AI-find results back to catalog entries
                 foreach (var dir in c.Dirs)
                     if (!_catalogByDir.TryGetValue(dir, out var existing) || c.Downloads > existing.Downloads)
                         _catalogByDir[dir] = c;
+            }
 
             RescanInstalled();
 
@@ -529,7 +573,7 @@ public class MainViewModel : ObservableObject
                 _categoryTitlesById = cats.GroupBy(c => c.Id).ToDictionary(g => g.Key, g => g.First().Title);
                 var counts = _catalog.GroupBy(a => a.CategoryId).ToDictionary(g => g.Key, g => g.Count());
                 Categories.Clear();
-                Categories.Add(new Category { Id = "", Title = "All Categories" });
+                Categories.Add(new Category { Id = "", Title = Loc.Instance["Status_AllCategories"] });
                 foreach (var kv in counts.Where(k => _categoryTitlesById.ContainsKey(k.Key)).OrderBy(k => _categoryTitlesById[k.Key]))
                     Categories.Add(new Category { Id = kv.Key, Title = _categoryTitlesById[kv.Key], Count = kv.Value });
                 _selectedCategory = Categories[0];
@@ -540,9 +584,9 @@ public class MainViewModel : ObservableObject
 
             ApplyBrowse(); // populate Browse by default (top downloads) so it's never blank
             await LoadMyAddonsAsync();
-            Status = $"{Installed.Count} addons installed · catalog: {_catalog.Count:N0} addons.";
+            Status = string.Format(Loc.Instance["Status_InstalledCatalog"], Installed.Count, _catalog.Count);
         }
-        catch (Exception ex) { Status = "Error: " + ex.Message; }
+        catch (Exception ex) { Status = string.Format(Loc.Instance["Status_Error"], ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -574,7 +618,6 @@ public class MainViewModel : ObservableObject
         _availableAddonNames = AddonScanner.AllAddonFolderNames(AddonsPath);
         foreach (var a in Installed)
         {
-            a.ProUpdates = IsPro;   // updates are Pro
             a.MissingDeps = string.Join(", ", a.Dependencies.Where(d =>
                 !_availableAddonNames.Contains(d) && _catalogByDir.ContainsKey(d)));   // actionable health check
             a.UserCategory = _settings.InstalledCategories.TryGetValue(a.FolderName, out var cat) ? cat : "";
@@ -615,7 +658,6 @@ public class MainViewModel : ObservableObject
             var inst = Installed.FirstOrDefault(i => i.FolderName.Equals(p.Name, StringComparison.OrdinalIgnoreCase));
             p.IsInstalled = inst is not null;
             p.InstalledVersion = inst?.Version ?? "";
-            p.ProUpdates = IsPro;   // updates are Pro
         }
     }
 
@@ -623,8 +665,8 @@ public class MainViewModel : ObservableObject
     {
         try
         {
-            p.Status = "Installing…";
-            Status = $"Installing {p.Title}…";
+            p.Status = Loc.Instance["Status_InstallingItem"];
+            Status = string.Format(Loc.Instance["Status_InstallingTitle"], p.Title);
             await _installer.InstallFromUrlAsync(p.DownloadUrl, AddonsPath);
             _state.Set(p.Name, p.Version); _state.Save();
             RescanInstalled();
@@ -633,15 +675,15 @@ public class MainViewModel : ObservableObject
             var deps = IsPro ? await EnsureDependenciesForAsync(new[] { p.Name }) : 0;
             RefreshMyAddonStatus();
             p.Status = "";
-            Status = deps > 0 ? $"Installed {p.Title} (+{deps} required library/ies)." : $"Installed {p.Title}.";
+            Status = deps > 0 ? string.Format(Loc.Instance["Status_InstalledLibs"], p.Title, deps) : string.Format(Loc.Instance["Status_InstalledTitle"], p.Title);
         }
-        catch (Exception ex) { p.Status = "Failed"; Status = $"Install failed: {ex.Message}"; }
+        catch (Exception ex) { p.Status = Loc.Instance["Status_ItemFailed"]; Status = string.Format(Loc.Instance["Status_InstallFailed"], ex.Message); }
     }
 
     private Task RemoveMyAddonAsync(PublishedAddon p)
     {
         var inst = Installed.FirstOrDefault(i => i.FolderName.Equals(p.Name, StringComparison.OrdinalIgnoreCase));
-        if (inst is null) { Status = $"{p.Title} isn't in your AddOns folder."; return Task.CompletedTask; }
+        if (inst is null) { Status = string.Format(Loc.Instance["Status_NotInFolder"], p.Title); return Task.CompletedTask; }
         var (ok, msg) = AddonInstaller.Uninstall(inst);
         Status = msg;
         if (ok)
@@ -668,7 +710,7 @@ public class MainViewModel : ObservableObject
     private Task RemoveBrowseAsync(EsouiAddon a)
     {
         var targets = FindInstalledFor(a);
-        if (targets.Count == 0) { Status = $"{a.Title} doesn't appear to be installed."; return Task.CompletedTask; }
+        if (targets.Count == 0) { Status = string.Format(Loc.Instance["Status_NotInstalled"], a.Title); return Task.CompletedTask; }
 
         int removed = 0; string lastMsg = "";
         foreach (var t in targets)
@@ -685,7 +727,7 @@ public class MainViewModel : ObservableObject
             RescanInstalled();
             RefreshMyAddonStatus();
             ApplyBrowse();
-            Status = removed == 1 ? lastMsg : $"Removed {removed} folders for {a.Title}.";
+            Status = removed == 1 ? lastMsg : string.Format(Loc.Instance["Status_RemovedFolders"], removed, a.Title);
         }
         else Status = lastMsg;
         return Task.CompletedTask;
@@ -718,11 +760,141 @@ public class MainViewModel : ObservableObject
         foreach (var a in items.Take(300))
         {
             a.IsInstalled = installedIds.Contains(a.Id);
+            a.MatchReason = "";   // normal browsing → drop any leftover AI-find reason on this reused entry
             SearchResults.Add(a);
         }
         BrowseView.Refresh();
         var where = SelectedCategory is { Id.Length: > 0 } c ? $" · {c.Title}" : "";
-        Status = $"Showing {SearchResults.Count} addon(s){where}.";
+        Status = string.Format(Loc.Instance["Status_ShowingAddons"], SearchResults.Count, where);
+    }
+
+    // ---- AI "Describe" search (Pro) ----
+    private bool _isFinding;
+    /// <summary>True while an AI Describe request is in flight (drives a spinner / disables the button).</summary>
+    public bool IsFinding { get => _isFinding; set => SetProperty(ref _isFinding, value); }
+
+    /// <summary>Takes the Browse search box text as a natural-language description, asks the backend finder for
+    /// matching add-ons, and shows them in the Browse list (each tagged with a one-line reason). Pro-only; the
+    /// backend re-checks the license before spending any model tokens. A plain "Search" still does the instant
+    /// local name/author filter — this is the same box, used a different way.</summary>
+    public async Task DescribeAsync()
+    {
+        var q = SearchText.Trim();
+        if (string.IsNullOrWhiteSpace(q) || IsFinding || !IsPro) return;   // UI also gates to Pro
+        IsFinding = true;
+        Status = string.Format(Loc.Instance["Status_Finding"], q);
+        try
+        {
+            var result = await _finder.FindAsync(q, _licenseInfo.Key);
+            var installedIds = new HashSet<string>(Installed.Where(i => i.Managed).Select(i => i.EsouiId));
+            SearchResults.Clear();
+            foreach (var m in result.Matches)
+            {
+                if (_catalogById.TryGetValue(m.Id, out var a))
+                {
+                    a.MatchReason = m.Reason;
+                    a.IsInstalled = installedIds.Contains(a.Id);
+                    SearchResults.Add(a);
+                }
+            }
+            BrowseView.Refresh();
+            Status = result.Error is not null
+                ? result.Error                                    // e.g. "Daily search limit reached (50/day)…"
+                : SearchResults.Count > 0
+                    ? string.Format(Loc.Instance["Status_Matches"], SearchResults.Count, q)
+                    : AddonFinderClient.IsConfigured
+                        ? Loc.Instance["Status_NoMatches"]
+                        : Loc.Instance["Status_DescribeUnavailable"];
+        }
+        catch (Exception ex) { Status = string.Format(Loc.Instance["Status_FindFailed"], ex.Message); }
+        finally { IsFinding = false; }
+    }
+
+    // ---- On-demand add-on description translation (Pro) ----
+    private string? _origDescription;   // holds the source text while a translation is displayed
+    private bool _isTranslatingDetail;
+    /// <summary>True while a translate request is in flight (spinner / disables the button).</summary>
+    public bool IsTranslatingDetail { get => _isTranslatingDetail; set { if (SetProperty(ref _isTranslatingDetail, value)) OnPropertyChanged(nameof(TranslateLabel)); } }
+    public bool IsDetailTranslated => _origDescription != null;
+    /// <summary>Show the 🌐 Translate button only for Pro users, with a backend configured and a description present.</summary>
+    public bool CanTranslateDetail => AddonTranslateClient.IsConfigured && IsPro && HasDetail && !string.IsNullOrWhiteSpace(DetailDescription);
+    public string TranslateLabel => IsTranslatingDetail ? Loc.Instance["Btn_Translating"]
+        : IsDetailTranslated ? Loc.Instance["Btn_ShowOriginal"] : Loc.Instance["Btn_Translate"];
+
+    /// <summary>Reset translation state when a different add-on is shown (called from the DetailTitle setter).</summary>
+    private void ResetDetailTranslation()
+    {
+        _origDescription = null;
+        OnPropertyChanged(nameof(IsDetailTranslated));
+        OnPropertyChanged(nameof(TranslateLabel));
+        OnPropertyChanged(nameof(CanTranslateDetail));
+    }
+
+    /// <summary>Toggle the detail description between its original text and a machine translation into the current
+    /// UI language (DeepL via the backend). Pro-gated + daily-capped server-side; surfaces cap/quota messages.</summary>
+    private async Task ToggleTranslateDetailAsync()
+    {
+        if (_origDescription != null)   // currently showing a translation → restore original
+        {
+            DetailDescription = _origDescription;
+            _origDescription = null;
+            OnPropertyChanged(nameof(IsDetailTranslated));
+            OnPropertyChanged(nameof(TranslateLabel));
+            return;
+        }
+        var text = DetailDescription;
+        if (string.IsNullOrWhiteSpace(text) || IsTranslatingDetail) return;
+        IsTranslatingDetail = true;
+        try
+        {
+            var res = await _translator.TranslateAsync(text, Loc.Instance.Lang, _licenseInfo.Key);
+            if (!string.IsNullOrEmpty(res.Text))
+            {
+                _origDescription = text;
+                DetailDescription = res.Text!;
+                OnPropertyChanged(nameof(IsDetailTranslated));
+                OnPropertyChanged(nameof(TranslateLabel));
+            }
+            else if (!string.IsNullOrEmpty(res.Error))
+                Status = res.Error;   // e.g. daily cap / monthly quota reached
+        }
+        finally { IsTranslatingDetail = false; }
+    }
+
+    /// <summary>Walkthrough demo: scripts the "Describe" flow with a canned result so new users see it work —
+    /// no backend call, no tokens, and it works for free users too. Picks real, popular catalog add-ons so
+    /// something genuinely pops up; the reason text is labelled as an example.</summary>
+    public void ShowDescribeDemo()
+    {
+        if (_catalog.Count == 0) return;
+        Filter = AddonFilter.All;                 // don't let the Addons/Libraries filter hide the demo result
+        _searchText = "show me alerts for abilities";
+        OnPropertyChanged(nameof(SearchText));    // show the example in the box WITHOUT running the local filter
+
+        SearchResults.Clear();
+        // Prefer real alert/notification add-ons so the example reads true; fall back to popular ones.
+        static bool IsAlertish(EsouiAddon a) =>
+            new[] { "alert", "alarm", "warn", "notif", "proc", "reminder", "cooldown", "timer" }
+                .Any(k => a.Title.Contains(k, StringComparison.OrdinalIgnoreCase));
+        var picks = _catalog.Where(IsAlertish).OrderByDescending(a => a.Downloads).Take(6).ToList();
+        if (picks.Count == 0)
+            picks = _catalog.OrderByDescending(a => a.Downloads).Take(6).ToList();
+
+        foreach (var a in picks)
+        {
+            a.MatchReason = "";        // reason-less: the result IS the list of similar add-ons
+            a.IsInstalled = false;
+            SearchResults.Add(a);
+        }
+        BrowseView.Refresh();
+        Status = Loc.Instance["Status_DescribeExample"];
+    }
+
+    /// <summary>Undo the walkthrough demo (clear the example text + results back to normal Browse).</summary>
+    public void ClearDescribeDemo()
+    {
+        if (SearchText.Length > 0) SearchText = "";   // setter runs ApplyBrowse → restores Browse + clears reasons
+        else ApplyBrowse();
     }
 
     // ---- detail population ----
@@ -734,13 +906,14 @@ public class MainViewModel : ObservableObject
         BrowseDetailInstalled = false;
         ShowManage = true;
         ShowMyAddonActions = false;
-        DetailUpdateAvailable = a.UpdateAvailable && IsPro;   // updating addons is Pro
+        MyDetailShowInstall = false; MyDetailUpdateAvailable = false; MyDetailShowRemove = false;
+        DetailUpdateAvailable = a.UpdateAvailable;   // updating addons is free
         DetailInstallTarget = null;
         DetailRemoveTarget = a;
         DetailTitle = a.Title;
         DetailMeta = a.Managed
-            ? $"Installed v{a.Version}  ·  latest v{a.LatestVersion}  ·  by {a.Author}"
-            : $"Installed v{a.Version}  ·  by {a.Author}  ·  (not on ESOUI)";
+            ? string.Format(Loc.Instance["Status_MetaInstalledManaged"], a.Version, a.LatestVersion, a.Author)
+            : string.Format(Loc.Instance["Status_MetaInstalledUnmanaged"], a.Version, a.Author);
         DetailImageUrl = !string.IsNullOrWhiteSpace(a.ImageUrl) ? a.ImageUrl : a.ThumbUrl;
         DetailImageUrls = a.ImageUrls;
         DetailDescription = a.Description;
@@ -749,8 +922,8 @@ public class MainViewModel : ObservableObject
         ShowDepAutoNote = false;
         DetailCategoryInput = a.UserCategory;
         DetailCategoryHint = a.EsouiCategory.Length > 0
-            ? $"Auto from ESOUI: {a.EsouiCategory}. Type to override, or leave blank to use it."
-            : "Type a category. Leave blank to clear.";
+            ? string.Format(Loc.Instance["Status_CategoryHintAuto"], a.EsouiCategory)
+            : Loc.Instance["Status_CategoryHintNone"];
         OnPropertyChanged(nameof(ShowCategoryEditor));
         BuildDependencyList(a);
 
@@ -779,15 +952,16 @@ public class MainViewModel : ObservableObject
         BrowseDetailInstalled = a.IsInstalled;
         ShowManage = false;
         ShowMyAddonActions = false;
+        MyDetailShowInstall = false; MyDetailUpdateAvailable = false; MyDetailShowRemove = false;
         DetailUpdateAvailable = false;
         DetailRemoveTarget = null;
         DetailInstallTarget = a;
         DetailTitle = a.Title;
-        DetailMeta = $"v{a.Version}  ·  {a.DownloadsDisplay} downloads  ·  updated {a.LastUpdated}  ·  by {a.Author}";
+        DetailMeta = string.Format(Loc.Instance["Status_MetaBrowse"], a.Version, a.DownloadsDisplay, a.LastUpdated, a.Author);
         DetailImageUrl = !string.IsNullOrWhiteSpace(a.ImageUrl) ? a.ImageUrl : a.ThumbUrl;
         DetailImageUrls = a.ImageUrls;
         DetailPageUrl = a.FileInfoUri;
-        DetailDescription = "Loading description…";
+        DetailDescription = Loc.Instance["Status_LoadingDesc"];
         DetailChangeLog = "";
         DetailDependencies.Clear();
         HasDependencies = false;
@@ -799,11 +973,11 @@ public class MainViewModel : ObservableObject
             if (ReferenceEquals(_selectedBrowse, a))
             {
                 if (!string.IsNullOrWhiteSpace(d.ImageUrl)) DetailImageUrl = d.ImageUrl;
-                DetailDescription = string.IsNullOrWhiteSpace(d.Description) ? "(no description)" : d.Description;
+                DetailDescription = string.IsNullOrWhiteSpace(d.Description) ? Loc.Instance["Status_NoDescription"] : d.Description;
                 DetailChangeLog = d.ChangeLog;
             }
         }
-        catch (Exception ex) { DetailDescription = "Could not load description: " + ex.Message; }
+        catch (Exception ex) { DetailDescription = string.Format(Loc.Instance["Status_LoadDescFailed"], ex.Message); }
     }
 
     private void ShowMyAddonDetail(PublishedAddon p)
@@ -813,7 +987,7 @@ public class MainViewModel : ObservableObject
         DetailMeta = p.StatusLabel;
         DetailImageUrl = "";
         DetailImageUrls = new();
-        DetailDescription = string.IsNullOrWhiteSpace(p.Description) ? "(no description provided)" : p.Description;
+        DetailDescription = string.IsNullOrWhiteSpace(p.Description) ? Loc.Instance["Status_NoDescriptionProvided"] : p.Description;
         DetailChangeLog = "";
         DetailPageUrl = "";
         // Show the addon's required libraries (from the manifest) so the user knows what's needed
@@ -834,7 +1008,7 @@ public class MainViewModel : ObservableObject
         ShowMyAddonActions = true;
         DetailMyAddonTarget = p;
         MyDetailShowInstall = p.ShowInstall;
-        MyDetailUpdateAvailable = p.UpdateAvailable && IsPro;   // updating addons is Pro
+        MyDetailUpdateAvailable = p.UpdateAvailable;   // updating addons is free
         MyDetailShowRemove = p.ShowRemove;
     }
 
@@ -855,7 +1029,7 @@ public class MainViewModel : ObservableObject
     {
         var required = DetailDependencies.Where(d => !d.IsOptional).Select(d => d.Name).ToList();
         DepFreeNote = required.Count > 0
-            ? $"⚠ Requires: {string.Join(", ", required)}.  Install it yourself, or get Pro to auto-install dependencies."
+            ? string.Format(Loc.Instance["Status_RequiresNote"], string.Join(", ", required))
             : "";
     }
 
@@ -864,48 +1038,48 @@ public class MainViewModel : ObservableObject
     {
         try
         {
-            addon.Status = "Installing…";
-            Status = $"Installing {addon.Title}…";
+            addon.Status = Loc.Instance["Status_InstallingItem"];
+            Status = string.Format(Loc.Instance["Status_InstallingTitle"], addon.Title);
             await _installer.InstallAsync(addon.Id, AddonsPath);
             RecordInstalled(addon);
             RescanInstalled();
             var deps = IsPro ? await EnsureDependenciesForAsync(addon.Dirs) : 0;   // auto-deps = Pro
             addon.IsInstalled = true;
-            addon.Status = "Installed";
+            addon.Status = Loc.Instance["Status_ItemInstalled"];
             if (ReferenceEquals(_selectedBrowse, addon)) { ShowInstall = false; BrowseDetailInstalled = true; }
             ApplyBrowse();
-            Status = deps > 0 ? $"Installed {addon.Title} (+{deps} dependency/ies)." : $"Installed {addon.Title}.";
+            Status = deps > 0 ? string.Format(Loc.Instance["Status_InstalledDeps"], addon.Title, deps) : string.Format(Loc.Instance["Status_InstalledTitle"], addon.Title);
         }
-        catch (Exception ex) { addon.Status = "Failed"; Status = $"Install failed: {ex.Message}"; }
+        catch (Exception ex) { addon.Status = Loc.Instance["Status_ItemFailed"]; Status = string.Format(Loc.Instance["Status_InstallFailed"], ex.Message); }
     }
 
     private async Task InstallByDirAsync(string dir)
     {
-        if (!_catalogByDir.TryGetValue(dir, out var cat)) { Status = $"{dir} not found on ESOUI."; return; }
-        Status = $"Installing {cat.Title}…";
+        if (!_catalogByDir.TryGetValue(dir, out var cat)) { Status = string.Format(Loc.Instance["Status_DirNotFound"], dir); return; }
+        Status = string.Format(Loc.Instance["Status_InstallingTitle"], cat.Title);
         try
         {
             await _installer.InstallAsync(cat.Id, AddonsPath);
             RecordInstalled(cat, dir);
             RescanInstalled(); // restores selection + refreshes the dependency ✓/✗ list
-            Status = $"Installed {cat.Title}.";
+            Status = string.Format(Loc.Instance["Status_InstalledTitle"], cat.Title);
         }
-        catch (Exception ex) { Status = $"Install failed: {ex.Message}"; }
+        catch (Exception ex) { Status = string.Format(Loc.Instance["Status_InstallFailed"], ex.Message); }
     }
 
     private async Task UpdateAsync(InstalledAddon addon)
     {
         try
         {
-            addon.Status = "Updating…";
-            Status = $"Updating {addon.Title}…";
+            addon.Status = Loc.Instance["Status_UpdatingItem"];
+            Status = string.Format(Loc.Instance["Status_UpdatingTitle"], addon.Title);
             await _installer.InstallAsync(addon.EsouiId, AddonsPath);
             if (_catalogByDir.TryGetValue(addon.FolderName, out var cat)) RecordInstalled(cat, addon.FolderName);
             RescanInstalled();
-            await EnsureDependenciesForAsync(new[] { addon.FolderName });
-            Status = $"Updated {addon.Title}.";
+            if (IsPro) await EnsureDependenciesForAsync(new[] { addon.FolderName });   // auto-deps = Pro
+            Status = string.Format(Loc.Instance["Status_UpdatedTitle"], addon.Title);
         }
-        catch (Exception ex) { addon.Status = "Failed"; Status = $"Update failed: {ex.Message}"; }
+        catch (Exception ex) { addon.Status = Loc.Instance["Status_ItemFailed"]; Status = string.Format(Loc.Instance["Status_UpdateFailed"], ex.Message); }
     }
 
     private async Task UpdateAllAsync()
@@ -916,16 +1090,16 @@ public class MainViewModel : ObservableObject
         {
             try
             {
-                Status = $"Updating {a.Title}… ({done + 1}/{outdated.Count})";
+                Status = string.Format(Loc.Instance["Status_UpdatingProgress"], a.Title, done + 1, outdated.Count);
                 await _installer.InstallAsync(a.EsouiId, AddonsPath);
                 if (_catalogByDir.TryGetValue(a.FolderName, out var cat)) RecordInstalled(cat, a.FolderName);
                 done++;
             }
-            catch (Exception ex) { Status = $"Failed updating {a.Title}: {ex.Message}"; }
+            catch (Exception ex) { Status = string.Format(Loc.Instance["Status_FailedUpdating"], a.Title, ex.Message); }
         }
         RescanInstalled();
-        await EnsureDependenciesForAsync(outdated.Select(a => a.FolderName).ToList());
-        Status = $"Updated {done} of {outdated.Count} addon(s).";
+        if (IsPro) await EnsureDependenciesForAsync(outdated.Select(a => a.FolderName).ToList());   // auto-deps = Pro
+        Status = string.Format(Loc.Instance["Status_UpdatedCount"], done, outdated.Count);
     }
 
     private Task RemoveAsync(InstalledAddon addon)
@@ -955,7 +1129,7 @@ public class MainViewModel : ObservableObject
                 if (Installed.Any(i => i.FolderName.Equals(dep, StringComparison.OrdinalIgnoreCase))) continue; // already installed
                 if (!_catalogByDir.TryGetValue(dep, out var cat)) continue;                                    // not on ESOUI
 
-                Status = $"Installing dependency {cat.Title}…";
+                Status = string.Format(Loc.Instance["Status_InstallingDep"], cat.Title);
                 try { await _installer.InstallAsync(cat.Id, AddonsPath); RecordInstalled(cat, dep); total++; }
                 catch { continue; }
                 RescanInstalled();
@@ -987,8 +1161,8 @@ public class MainViewModel : ObservableObject
         RescanInstalled();
         ApplyBrowse();
         Status = AddonsFolderFound
-            ? $"{Installed.Count} addons found in {path}."
-            : "That folder doesn't exist — pick your '…\\Elder Scrolls Online\\live\\AddOns' folder.";
+            ? string.Format(Loc.Instance["Status_AddonsFound"], Installed.Count, path)
+            : Loc.Instance["Status_FolderMissing"];
     }
 
     // ==================== Pro: categories (assign + sortable Category column) ====================
@@ -1042,9 +1216,10 @@ public class MainViewModel : ObservableObject
         DetailCategoryInput = category;
         RefreshKnownCategories();
         InstalledView.Refresh();
+        var now = a.Category.Length > 0 ? a.Category : Loc.Instance["Status_Uncategorized"];
         Status = category.Length == 0
-            ? $"Cleared category override for {a.Title} (now: {(a.Category.Length > 0 ? a.Category : "Uncategorized")})."
-            : $"Set {a.Title} to “{category}”.";
+            ? string.Format(Loc.Instance["Status_ClearedCategory"], a.Title, now)
+            : string.Format(Loc.Instance["Status_SetCategory"], a.Title, category);
     }
 
     // ==================== Pro: auto-update on launch ====================
@@ -1070,6 +1245,20 @@ public class MainViewModel : ObservableObject
         set { if (value != _settings.AcceptedTermsVersion) { _settings.AcceptedTermsVersion = value; _settingsStore.Save(_settings); } }
     }
 
+    /// <summary>UI language code; setting it applies live (via Loc) and persists the choice.</summary>
+    public string Language
+    {
+        get => string.IsNullOrEmpty(_settings.Language) ? Loc.Instance.Lang : _settings.Language;
+        set
+        {
+            Loc.Instance.Lang = value;
+            if (value != _settings.Language) { _settings.Language = value; _settingsStore.Save(_settings); }
+        }
+    }
+
+    /// <summary>True until the user has chosen a language at least once (drives the first-run picker).</summary>
+    public bool LanguageChosen => !string.IsNullOrEmpty(_settings.Language);
+
     /// <summary>Pro: update all out-of-date addons automatically when the app starts.</summary>
     public bool AutoUpdateOnLaunch
     {
@@ -1087,7 +1276,7 @@ public class MainViewModel : ObservableObject
     public async Task AutoUpdateOnLaunchAsync()
     {
         if (!IsPro || !AutoUpdateOnLaunch || UpdateCount == 0) return;
-        Status = "Auto-updating addons on launch…";
+        Status = Loc.Instance["Status_AutoUpdating"];
         await UpdateAllAsync();
     }
 
@@ -1139,9 +1328,9 @@ public class MainViewModel : ObservableObject
             var dest = Path.Combine(SnapshotService.BackupsDir, $"backup-{stamp}.zip");
             SnapshotService.Write(manifest, SnapshotService.SavedVarsDirFor(AddonsPath), dest, SnapshotService.AddOnSettingsPathFor(AddonsPath));
             RefreshSnapshots();
-            Status = $"Backed up {manifest.Addons.Count} addons + {manifest.SavedVarCount} config file(s).";
+            Status = string.Format(Loc.Instance["Status_BackedUp"], manifest.Addons.Count, manifest.SavedVarCount);
         }
-        catch (Exception ex) { Status = "Backup failed: " + ex.Message; }
+        catch (Exception ex) { Status = string.Format(Loc.Instance["Status_BackupFailed"], ex.Message); }
         return Task.CompletedTask;
     }
 
@@ -1150,16 +1339,16 @@ public class MainViewModel : ObservableObject
     {
         if (!IsPro) return Task.CompletedTask;
         name = (name ?? "").Trim();
-        if (name.Length == 0) { Status = "Enter a profile name."; return Task.CompletedTask; }
+        if (name.Length == 0) { Status = Loc.Instance["Status_EnterProfileName"]; return Task.CompletedTask; }
         try
         {
             var manifest = BuildManifest(name);
             var dest = Path.Combine(SnapshotService.ProfilesDir, SnapshotService.SafeFileName(name) + ".zip");
             SnapshotService.Write(manifest, SnapshotService.SavedVarsDirFor(AddonsPath), dest, SnapshotService.AddOnSettingsPathFor(AddonsPath));
             RefreshSnapshots();
-            Status = $"Saved profile “{name}” ({manifest.Addons.Count} addons).";
+            Status = string.Format(Loc.Instance["Status_SavedProfile"], name, manifest.Addons.Count);
         }
-        catch (Exception ex) { Status = "Couldn't save profile: " + ex.Message; }
+        catch (Exception ex) { Status = string.Format(Loc.Instance["Status_SaveProfileFailed"], ex.Message); }
         return Task.CompletedTask;
     }
 
@@ -1185,7 +1374,7 @@ public class MainViewModel : ObservableObject
             {
                 if (installedFolders.Contains(a.FolderName)) continue;
                 if (string.IsNullOrEmpty(a.EsouiId)) { skipped++; continue; }   // custom/private — can't auto-fetch
-                Status = $"Installing {a.Title}…";
+                Status = string.Format(Loc.Instance["Status_InstallingTitle"], a.Title);
                 try { await _installer.InstallAsync(a.EsouiId, AddonsPath); added++; }
                 catch { skipped++; }
             }
@@ -1211,13 +1400,13 @@ public class MainViewModel : ObservableObject
             ApplyBrowse();
 
             var bits = new List<string>();
-            if (added > 0) bits.Add($"installed {added}");
-            if (removed > 0) bits.Add($"removed {removed}");
-            if (restored > 0) bits.Add($"restored {restored} config file(s)");
-            if (skipped > 0) bits.Add($"{skipped} skipped (not on ESOUI)");
-            Status = bits.Count > 0 ? $"Applied “{entry.Name}”: {string.Join(", ", bits)}." : $"Applied “{entry.Name}” — nothing to change.";
+            if (added > 0) bits.Add(string.Format(Loc.Instance["Status_BitInstalled"], added));
+            if (removed > 0) bits.Add(string.Format(Loc.Instance["Status_BitRemoved"], removed));
+            if (restored > 0) bits.Add(string.Format(Loc.Instance["Status_BitRestored"], restored));
+            if (skipped > 0) bits.Add(string.Format(Loc.Instance["Status_BitSkipped"], skipped));
+            Status = bits.Count > 0 ? string.Format(Loc.Instance["Status_Applied"], entry.Name, string.Join(", ", bits)) : string.Format(Loc.Instance["Status_AppliedNoChange"], entry.Name);
         }
-        catch (Exception ex) { Status = "Apply failed: " + ex.Message; }
+        catch (Exception ex) { Status = string.Format(Loc.Instance["Status_ApplyFailed"], ex.Message); }
         finally { IsBusy = false; }
     }
 
@@ -1225,8 +1414,8 @@ public class MainViewModel : ObservableObject
     public void DeleteSnapshot(SnapshotEntry entry)
     {
         if (entry is null) return;
-        try { if (File.Exists(entry.FilePath)) File.Delete(entry.FilePath); Status = $"Deleted “{entry.Name}”."; }
-        catch (Exception ex) { Status = "Couldn't delete: " + ex.Message; }
+        try { if (File.Exists(entry.FilePath)) File.Delete(entry.FilePath); Status = string.Format(Loc.Instance["Status_Deleted"], entry.Name); }
+        catch (Exception ex) { Status = string.Format(Loc.Instance["Status_DeleteFailed"], ex.Message); }
         RefreshSnapshots();
     }
 
@@ -1237,22 +1426,22 @@ public class MainViewModel : ObservableObject
         _settingsStore.Save(_settings);
         OnPropertyChanged(nameof(SyncFolder));
         OnPropertyChanged(nameof(HasSyncFolder));
-        Status = HasSyncFolder ? $"Sync folder set to {SyncFolder}." : "Sync folder cleared.";
+        Status = HasSyncFolder ? string.Format(Loc.Instance["Status_SyncFolderSet"], SyncFolder) : Loc.Instance["Status_SyncFolderCleared"];
     }
 
     /// <summary>Pushes the current install set + configs to the sync folder (overwrites the sync slot).</summary>
     public Task SyncPushAsync()
     {
         if (!IsPro) return Task.CompletedTask;
-        if (!HasSyncFolder) { Status = "Set a sync folder first."; return Task.CompletedTask; }
+        if (!HasSyncFolder) { Status = Loc.Instance["Status_SetSyncFirst"]; return Task.CompletedTask; }
         try
         {
             var manifest = BuildManifest($"Sync from {Environment.MachineName}");
             var dest = Path.Combine(SyncFolder, SnapshotService.SyncFileName);
             SnapshotService.Write(manifest, SnapshotService.SavedVarsDirFor(AddonsPath), dest, SnapshotService.AddOnSettingsPathFor(AddonsPath));
-            Status = $"Pushed {manifest.Addons.Count} addons + {manifest.SavedVarCount} config(s) to sync.";
+            Status = string.Format(Loc.Instance["Status_Pushed"], manifest.Addons.Count, manifest.SavedVarCount);
         }
-        catch (Exception ex) { Status = "Sync push failed: " + ex.Message; }
+        catch (Exception ex) { Status = string.Format(Loc.Instance["Status_SyncPushFailed"], ex.Message); }
         return Task.CompletedTask;
     }
 
@@ -1260,11 +1449,11 @@ public class MainViewModel : ObservableObject
     public async Task SyncPullAsync(bool removeExtras)
     {
         if (!IsPro) return;
-        if (!HasSyncFolder) { Status = "Set a sync folder first."; return; }
+        if (!HasSyncFolder) { Status = Loc.Instance["Status_SetSyncFirst"]; return; }
         var path = Path.Combine(SyncFolder, SnapshotService.SyncFileName);
-        if (!File.Exists(path)) { Status = "No sync snapshot found in that folder yet — push from another PC first."; return; }
+        if (!File.Exists(path)) { Status = Loc.Instance["Status_NoSyncSnapshot"]; return; }
         var manifest = SnapshotService.ReadManifest(path);
-        if (manifest is null) { Status = "The sync snapshot is unreadable."; return; }
+        if (manifest is null) { Status = Loc.Instance["Status_SyncUnreadable"]; return; }
         await ApplySnapshotAsync(new SnapshotEntry { FilePath = path, Manifest = manifest }, restoreConfigs: true, removeExtras: removeExtras);
     }
 

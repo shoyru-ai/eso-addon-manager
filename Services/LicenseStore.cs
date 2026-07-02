@@ -13,6 +13,10 @@ public class LicenseInfo
     /// <summary>Last known Pro state — used as an offline grace fallback when the API is unreachable.</summary>
     public bool ProCached { get; set; }
 
+    /// <summary>True when Pro was granted by the offline founder key — validated locally, never via Lemon
+    /// Squeezy, and never expires (so beta friends keep Pro through the test→live store switch).</summary>
+    public bool Founder { get; set; }
+
     public bool HasKey => Key.Length > 0;
 }
 

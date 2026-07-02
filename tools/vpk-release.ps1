@@ -24,8 +24,11 @@ $pub     = Join-Path $root "publish"
 $rel     = Join-Path $root "releases"
 $icon    = Join-Path $root "appicon.ico"
 $repoUrl = "https://github.com/shoyru-ai/eso-addon-manager"
-$packId  = "Shoyru.AddonSuite"           # permanent app identity for updates — never change
-$mainExe = "Shoyru Addon Suite.exe"
+# PPE gets a SEPARATE Velopack identity so its Setup.exe installs side-by-side with PROD instead of
+# colliding ("already installed"). PROD's packId is permanent — never change it.
+$packId    = if ($Prerelease) { "Shoyru.AddonSuite.PPE" } else { "Shoyru.AddonSuite" }
+$packTitle = if ($Prerelease) { "Shoyru's Addon Suite (PPE)" } else { "Shoyru's Addon Suite" }
+$mainExe = "Shoyrus Addon Suite.exe"
 $channel = if ($Prerelease) { "ppe" } else { "win" }
 if (-not $Notes) { $Notes = "Release v$Version" }
 
@@ -35,7 +38,10 @@ $env:Path += ";$env:USERPROFILE\.dotnet\tools"
 if (Test-Path $pub) { Remove-Item $pub -Recurse -Force }
 
 Write-Host "Publishing v$Version (self-contained folder) ..." -ForegroundColor Cyan
-dotnet publish $proj -c Release -r win-x64 --self-contained true -o $pub | Out-Null
+# Pass the version into the BUILD (not just vpk pack) so the exe's assembly version matches the release —
+# otherwise the in-app version badge (UpdateChecker.CurrentVersion reads Assembly.GetName().Version) stays
+# frozen at the csproj <Version> regardless of what Velopack ships.
+dotnet publish $proj -c Release -r win-x64 --self-contained true -o $pub -p:Version=$Version | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed ($LASTEXITCODE)" }
 
 $notesFile = Join-Path $root "release-notes.md"
@@ -43,7 +49,7 @@ $Notes | Out-File -Encoding utf8 $notesFile
 
 Write-Host "Packing (channel=$channel) ..." -ForegroundColor Cyan
 $packArgs = @("pack", "-u", $packId, "-v", $Version, "-p", $pub, "-e", $mainExe, "-o", $rel, "-c", $channel,
-    "--packTitle", "Shoyru Addon Suite", "--packAuthors", "Shoyru", "--releaseNotes", $notesFile, "--icon", $icon)
+    "--packTitle", $packTitle, "--packAuthors", "Shoyru", "--releaseNotes", $notesFile, "--icon", $icon)
 
 # Code signing via Azure Artifact (Trusted) Signing - only when the metadata file exists (git-ignored).
 # Requires az login on this machine with the Certificate Profile Signer role. See azure-signing.example.json.
@@ -59,7 +65,7 @@ vpk @packArgs
 if ($LASTEXITCODE -ne 0) { throw "vpk pack failed ($LASTEXITCODE)" }
 
 if ($PackOnly) {
-    Write-Host "PackOnly: built $rel\$packId-win-Setup.exe (no upload)." -ForegroundColor Green
+    Write-Host "PackOnly: built $rel\$packId-$channel-Setup.exe (no upload)." -ForegroundColor Green
     return
 }
 

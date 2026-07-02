@@ -1,6 +1,6 @@
-# Shoyru's ESO Addons
+# Shoyru's Addon Suite
 
-A fast, lightweight **addon manager for The Elder Scrolls Online** — browse, install, update, and remove addons from [ESOUI](https://www.esoui.com), with none of the bloat. A lean alternative to Minion (ESO-only, no ads, no extra games).
+A fast, native **add-on manager for The Elder Scrolls Online** — browse, install, update, and remove add-ons from [ESOUI](https://www.esoui.com), with none of the bloat. Describe what you want in plain English and AI finds it. A lean alternative to Minion (ESO-only, no ads, no extra games).
 
 > Built with WPF on .NET 8.
 
@@ -18,9 +18,8 @@ A fast, lightweight **addon manager for The Elder Scrolls Online** — browse, i
 
 ## Install
 
-1. Download the latest **`Shoyrus-ESO-Addons.exe`** (or the zip) from the [**Releases**](../../releases) page.
-2. Double-click it — **nothing else to install** (.NET is bundled in the exe).
-3. First launch: if Windows SmartScreen warns (the app isn't code-signed), click **More info → Run anyway**.
+1. Download the latest **`Setup.exe`** from the [**Releases**](../../releases) page and run it — it installs to your user profile (no admin needed) and **auto-updates** itself going forward.
+2. First launch: if Windows SmartScreen warns (the app isn't code-signed yet), click **More info → Run anyway**.
 
 **Requirements:** Windows 10/11 64-bit, and ESO installed + launched at least once (so the AddOns folder exists).
 
@@ -40,7 +39,7 @@ dotnet test ..\ESOAddonsTests    # run the test suite
 Cut a release (self-contained single-file exe + zip, published to GitHub Releases):
 
 ```powershell
-.\tools\cut-release.ps1 -Version 0.2.0 -Notes "What changed"
+.\tools\vpk-release.ps1 -Version 0.5.0 -Notes "What changed"
 ```
 
 ## How it works

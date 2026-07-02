@@ -38,6 +38,13 @@ public class BusinessConfig
 {
     /// <summary>Base URL of the subscription-management backend (…/api). Empty = feature hidden.</summary>
     public string BackendBaseUrl { get; set; } = "";
+    /// <summary>A single shared offline "founder" key. When a user enters EXACTLY this, Pro is granted locally
+    /// (never via Lemon Squeezy) and persists permanently — for trusted beta testers; it survives the
+    /// test→live store switch so friends keep Pro for free. Empty = disabled.</summary>
+    public string FounderKey { get; set; } = "";
+    /// <summary>When false (default), the Get Pro screen hides the checkout buttons and shows "purchasing opens
+    /// soon" — license-key activation still works. Flip to true once the Lemon Squeezy store is live.</summary>
+    public bool PurchaseEnabled { get; set; } = false;
     /// <summary>Optional donation link.</summary>
     public string SupportUrl { get; set; } = "";
     /// <summary>Product ids whose license keys unlock Pro (subscription + lifetime). Empty = accept any (dev).</summary>

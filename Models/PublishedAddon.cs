@@ -36,10 +36,8 @@ public class PublishedAddon : ObservableObject
     public bool ShowInstall => !IsInstalled;
     public bool ShowRemove => IsInstalled;
 
-    // Addon updates are a Pro feature. The VM sets ProUpdates = IsPro.
-    private bool _proUpdates;
-    public bool ProUpdates { get => _proUpdates; set { if (SetProperty(ref _proUpdates, value)) OnPropertyChanged(nameof(ShowUpdate)); } }
-    public bool ShowUpdate => ProUpdates && UpdateAvailable;
+    /// <summary>Show the Update button whenever an update is available (updating is free).</summary>
+    public bool ShowUpdate => UpdateAvailable;
 
     public string StatusLabel =>
         !IsInstalled ? $"v{Version}"

@@ -7,12 +7,12 @@ public static class Terms
     public const int CurrentVersion = 1;
 
     public const string Text =
-@"Shoyru Addon Suite — Terms of Use & License Agreement
+@"Shoyru's Addon Suite — Terms of Use & License Agreement
 
-Last updated: 2026. Please read these terms before using Shoyru Addon Suite (the “App”). By installing or using the App, you agree to them. If you do not agree, do not use the App.
+Last updated: 2026. Please read these terms before using Shoyru's Addon Suite (the “App”). By installing or using the App, you agree to them. If you do not agree, do not use the App.
 
 1. What this App is
-Shoyru Addon Suite is a desktop manager for browsing, installing, updating, and organizing add-ons for The Elder Scrolls Online (“ESO”). The App is a tool only.
+Shoyru's Addon Suite is a desktop manager for browsing, installing, updating, and organizing add-ons for The Elder Scrolls Online (“ESO”). The App is a tool only.
 
 2. The App is free; Pro is an optional paid upgrade
 The core App is free to use. “Pro” unlocks optional convenience features (e.g. bulk/auto updates, profiles, backups, multi-PC sync, themes, categories) via a one-time purchase. You are paying for the tool’s features — never for the add-ons themselves.
