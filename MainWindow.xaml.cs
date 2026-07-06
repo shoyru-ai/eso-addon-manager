@@ -18,6 +18,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _vm = new MainViewModel(addonsOverride, ppe);
         DataContext = _vm;
+        _vm.FolderAccessBlocked += () => Dispatcher.Invoke(ShowFolderBlockedDialog);
         // Keep the walkthrough overlay (dim + spotlight) correct when the window resizes/maximizes.
         WalkthroughHost.SizeChanged += (_, _) =>
         {
@@ -118,6 +119,67 @@ public partial class MainWindow : Window
         if (TryFindResource("Primary") is Style ps) ok.Style = ps;
         ok.Click += (_, _) => { if (combo.SelectedItem is ComboBoxItem ci && ci.Tag is string c) _vm.Language = c; win.Close(); };
         panel.Children.Add(ok);
+        win.Content = panel;
+        win.ShowDialog();
+    }
+
+    // ---- Folder-access-blocked guided fix (ransomware protection / AV folder guard) ----
+    private bool _folderBlockShown;
+
+    private void ShowFolderBlockedDialog()
+    {
+        if (_folderBlockShown) return;   // once per session — every subsequent failed install re-raises it
+        _folderBlockShown = true;
+
+        Brush B(string key, string fallback) =>
+            TryFindResource(key) as Brush ?? (Brush)new BrushConverter().ConvertFromString(fallback)!;
+        var L = Loc.Instance;
+        var exe = Environment.ProcessPath ?? "";
+
+        var win = new Window
+        {
+            Title = L["FolderBlock_Title"], Width = 560, SizeToContent = SizeToContent.Height,
+            Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = B("Bg", "#1E1E1E"), FontFamily = new FontFamily("Segoe UI Variable Text, Segoe UI"),
+            ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false,
+        };
+        var panel = new StackPanel { Margin = new Thickness(22) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = L["FolderBlock_Title"], FontSize = 18, FontWeight = FontWeights.Bold,
+            Foreground = B("Text", "#E6E6E6"), Margin = new Thickness(0, 0, 0, 12),
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = L["FolderBlock_Body"], FontSize = 14, TextWrapping = TextWrapping.Wrap,
+            Foreground = B("Text", "#E6E6E6"), Margin = new Thickness(0, 0, 0, 12),
+        });
+
+        var pathBox = new TextBox { Text = exe, IsReadOnly = true, FontSize = 13, VerticalContentAlignment = VerticalAlignment.Center };
+        var copy = new Button { Content = L["FolderBlock_CopyPath"], Margin = new Thickness(8, 0, 0, 0), Padding = new Thickness(10, 4, 10, 4) };
+        copy.Click += (_, _) => { try { Clipboard.SetText(exe); } catch { /* clipboard busy */ } };
+        var pathRow = new DockPanel { Margin = new Thickness(0, 0, 0, 14) };
+        DockPanel.SetDock(copy, Dock.Right);
+        pathRow.Children.Add(copy);
+        pathRow.Children.Add(pathBox);
+        panel.Children.Add(pathRow);
+
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        var open = new Button { Content = L["FolderBlock_OpenSecurity"], Padding = new Thickness(12, 6, 12, 6), IsDefault = true };
+        if (TryFindResource("Primary") is Style ps2) open.Style = ps2;
+        open.Click += (_, _) =>
+        {
+            // Deep-link straight to Windows Security → Ransomware protection.
+            try { Process.Start(new ProcessStartInfo("windowsdefender://ransomwareprotection") { UseShellExecute = true }); }
+            catch { /* very old builds lack the URI; the dialog text still names the page */ }
+        };
+        var close = new Button { Content = L["FolderBlock_Close"], Margin = new Thickness(8, 0, 0, 0), Padding = new Thickness(12, 6, 12, 6), IsCancel = true };
+        if (TryFindResource("Ghost") is Style gs) close.Style = gs;
+        close.Click += (_, _) => win.Close();
+        buttons.Children.Add(open);
+        buttons.Children.Add(close);
+        panel.Children.Add(buttons);
+
         win.Content = panel;
         win.ShowDialog();
     }

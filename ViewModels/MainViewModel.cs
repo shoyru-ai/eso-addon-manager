@@ -306,6 +306,33 @@ public class MainViewModel : ObservableObject
     private bool _addonsFolderFound = true;
     public bool AddonsFolderFound { get => _addonsFolderFound; set => SetProperty(ref _addonsFolderFound, value); }
 
+    /// <summary>Raised when a failed install is confirmed (by a write probe) to be a folder-wide write
+    /// block — ransomware protection / AV folder guard. The window shows the guided-fix dialog.</summary>
+    public event Action? FolderAccessBlocked;
+    private bool _lastFailureFolderBlocked;
+
+    /// <summary>Actionable status-bar text for an install/update failure, plus diag logging.
+    /// Raises <see cref="FolderAccessBlocked"/> when the whole AddOns folder rejects writes.</summary>
+    private string DescribeInstallFailure(string what, Exception ex)
+    {
+        Diag.Log($"install failed ({what}) at {AddonsPath}: {ex}");
+        _lastFailureFolderBlocked = false;
+        switch (InstallFailure.Classify(ex))
+        {
+            case InstallFailure.Kind.CdnForbidden:
+                return Loc.Instance["Err_CdnForbidden"];
+            case InstallFailure.Kind.Network:
+                return string.Format(Loc.Instance["Err_Network"], ex.Message);
+            case InstallFailure.Kind.WriteBlocked when InstallFailure.ProbeWrite(AddonsPath) is { } probe:
+                Diag.Log($"write probe blocked: {probe.Message}");
+                _lastFailureFolderBlocked = true;
+                FolderAccessBlocked?.Invoke();
+                return Loc.Instance["Err_WriteBlocked"];
+            default:
+                return ex.Message;
+        }
+    }
+
     // ---- app self-update (Velopack) ----
     private bool _appUpdateAvailable;
     public bool AppUpdateAvailable { get => _appUpdateAvailable; set => SetProperty(ref _appUpdateAvailable, value); }
@@ -677,7 +704,7 @@ public class MainViewModel : ObservableObject
             p.Status = "";
             Status = deps > 0 ? string.Format(Loc.Instance["Status_InstalledLibs"], p.Title, deps) : string.Format(Loc.Instance["Status_InstalledTitle"], p.Title);
         }
-        catch (Exception ex) { p.Status = Loc.Instance["Status_ItemFailed"]; Status = string.Format(Loc.Instance["Status_InstallFailed"], ex.Message); }
+        catch (Exception ex) { p.Status = Loc.Instance["Status_ItemFailed"]; Status = string.Format(Loc.Instance["Status_InstallFailed"], DescribeInstallFailure(p.Title, ex)); }
     }
 
     private Task RemoveMyAddonAsync(PublishedAddon p)
@@ -1050,7 +1077,7 @@ public class MainViewModel : ObservableObject
             ApplyBrowse();
             Status = deps > 0 ? string.Format(Loc.Instance["Status_InstalledDeps"], addon.Title, deps) : string.Format(Loc.Instance["Status_InstalledTitle"], addon.Title);
         }
-        catch (Exception ex) { addon.Status = Loc.Instance["Status_ItemFailed"]; Status = string.Format(Loc.Instance["Status_InstallFailed"], ex.Message); }
+        catch (Exception ex) { addon.Status = Loc.Instance["Status_ItemFailed"]; Status = string.Format(Loc.Instance["Status_InstallFailed"], DescribeInstallFailure(addon.Title, ex)); }
     }
 
     private async Task InstallByDirAsync(string dir)
@@ -1064,7 +1091,7 @@ public class MainViewModel : ObservableObject
             RescanInstalled(); // restores selection + refreshes the dependency ✓/✗ list
             Status = string.Format(Loc.Instance["Status_InstalledTitle"], cat.Title);
         }
-        catch (Exception ex) { Status = string.Format(Loc.Instance["Status_InstallFailed"], ex.Message); }
+        catch (Exception ex) { Status = string.Format(Loc.Instance["Status_InstallFailed"], DescribeInstallFailure(cat.Title, ex)); }
     }
 
     private async Task UpdateAsync(InstalledAddon addon)
@@ -1079,7 +1106,7 @@ public class MainViewModel : ObservableObject
             if (IsPro) await EnsureDependenciesForAsync(new[] { addon.FolderName });   // auto-deps = Pro
             Status = string.Format(Loc.Instance["Status_UpdatedTitle"], addon.Title);
         }
-        catch (Exception ex) { addon.Status = Loc.Instance["Status_ItemFailed"]; Status = string.Format(Loc.Instance["Status_UpdateFailed"], ex.Message); }
+        catch (Exception ex) { addon.Status = Loc.Instance["Status_ItemFailed"]; Status = string.Format(Loc.Instance["Status_UpdateFailed"], DescribeInstallFailure(addon.Title, ex)); }
     }
 
     private async Task UpdateAllAsync()
@@ -1095,7 +1122,11 @@ public class MainViewModel : ObservableObject
                 if (_catalogByDir.TryGetValue(a.FolderName, out var cat)) RecordInstalled(cat, a.FolderName);
                 done++;
             }
-            catch (Exception ex) { Status = string.Format(Loc.Instance["Status_FailedUpdating"], a.Title, ex.Message); }
+            catch (Exception ex)
+            {
+                Status = string.Format(Loc.Instance["Status_FailedUpdating"], a.Title, DescribeInstallFailure(a.Title, ex));
+                if (_lastFailureFolderBlocked) break;   // every remaining write will fail the same way
+            }
         }
         RescanInstalled();
         if (IsPro) await EnsureDependenciesForAsync(outdated.Select(a => a.FolderName).ToList());   // auto-deps = Pro

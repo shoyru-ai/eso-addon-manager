@@ -16,15 +16,45 @@ public partial class EsouiClient
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(60) };
     private List<EsouiAddon>? _catalog;
 
-    public EsouiClient() => _http.DefaultRequestHeaders.Add("User-Agent", "ESO-Addons/0.1");
+    /// <summary>Versioned UA so ESOUI can identify (and allowlist) this client.</summary>
+    public static string UserAgent =>
+        $"ShoyruAddonSuite/{typeof(EsouiClient).Assembly.GetName().Version?.ToString(3) ?? "1.0"}";
+
+    public EsouiClient() => _http.DefaultRequestHeaders.Add("User-Agent", UserAgent);
 
     /// <summary>Full catalog (~3000 entries). Cached after first fetch.</summary>
     public async Task<IReadOnlyList<EsouiAddon>> GetCatalogAsync(bool refresh = false)
     {
         if (_catalog is not null && !refresh) return _catalog;
-        _catalog = ParseCatalog(await _http.GetStringAsync(FileListUrl));
+        _catalog = ParseCatalog(await WithRetryAsync(() => _http.GetStringAsync(FileListUrl)));
         return _catalog;
     }
+
+    /// <summary>Retries transient HTTP failures (timeouts, 403/429 rate-limit bans, 5xx) with a short
+    /// backoff — a mass reinstall can trip ESOUI's CDN rate limit mid-run and recover seconds later.</summary>
+    private static async Task<T> WithRetryAsync<T>(Func<Task<T>> op)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try { return await op(); }
+            catch (Exception ex) when (attempt < 3 && IsTransient(ex))
+            {
+                await Task.Delay(TimeSpan.FromSeconds(attempt * 2));
+            }
+        }
+    }
+
+    /// <summary>Whether a download failure is worth retrying. (Static = unit-testable.)</summary>
+    public static bool IsTransient(Exception ex) => ex switch
+    {
+        HttpRequestException h => h.StatusCode is null // connection-level failure
+            or System.Net.HttpStatusCode.Forbidden
+            or System.Net.HttpStatusCode.RequestTimeout
+            or System.Net.HttpStatusCode.TooManyRequests
+            or >= System.Net.HttpStatusCode.InternalServerError,
+        TaskCanceledException => true,   // HttpClient timeout
+        _ => false,
+    };
 
     /// <summary>Parses a filelist.json payload into catalog entries. (Static = unit-testable.)</summary>
     public static List<EsouiAddon> ParseCatalog(string json)
@@ -58,7 +88,7 @@ public partial class EsouiClient
 
     /// <summary>Per-addon details: download URL, dirs, description, changelog, preview image.</summary>
     public async Task<AddonDetails> GetDetailsAsync(string id)
-        => ParseDetails(await _http.GetStringAsync(string.Format(FileDetailsUrl, id)), id);
+        => ParseDetails(await WithRetryAsync(() => _http.GetStringAsync(string.Format(FileDetailsUrl, id))), id);
 
     /// <summary>Parses a filedetails.json payload. (Static = unit-testable.)</summary>
     public static AddonDetails ParseDetails(string json, string id = "")
@@ -81,7 +111,7 @@ public partial class EsouiClient
 
     /// <summary>Fetches the category list (buckets).</summary>
     public async Task<List<Category>> GetCategoriesAsync()
-        => ParseCategories(await _http.GetStringAsync(CategoryListUrl));
+        => ParseCategories(await WithRetryAsync(() => _http.GetStringAsync(CategoryListUrl)));
 
     /// <summary>Parses categorylist.json. (Static = unit-testable.)</summary>
     public static List<Category> ParseCategories(string json)
@@ -115,7 +145,7 @@ public partial class EsouiClient
         return list;
     }
 
-    public async Task<byte[]> DownloadAsync(string url) => await _http.GetByteArrayAsync(url);
+    public async Task<byte[]> DownloadAsync(string url) => await WithRetryAsync(() => _http.GetByteArrayAsync(url));
 
     // ---- helpers ----
     private static string Str(JsonElement e, string name) =>
