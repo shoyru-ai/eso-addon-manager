@@ -18,7 +18,7 @@ param(
     [switch]$Merge
 )
 $ErrorActionPreference = 'Stop'
-$root    = "C:\Users\jaker\ESOAddons"
+$root    = "C:\Users\jaker\eso-addon-manager"
 $proj    = Join-Path $root "ESOAddons.csproj"
 $pub     = Join-Path $root "publish"
 $rel     = Join-Path $root "releases"
