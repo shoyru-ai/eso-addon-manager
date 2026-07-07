@@ -112,4 +112,39 @@ public class InstalledAddonTests
         var a = new InstalledAddon { Version = "1.0", LatestVersion = "9.9" }; // no EsouiId
         Assert.False(a.ShowUpdate);
     }
+
+    // ---- Shoyru custom/published addons (not on ESOUI): update like any other addon ----
+
+    [Fact]
+    public void IsCustom_true_only_with_download_url()
+    {
+        Assert.True(new InstalledAddon { CustomDownloadUrl = "https://x/ShoyrUI.zip" }.IsCustom);
+        Assert.False(new InstalledAddon { CustomDownloadUrl = "" }.IsCustom);
+    }
+
+    [Fact]
+    public void Custom_addon_update_available_without_esoui_id()
+    {
+        // ShoyrUI real case: not on ESOUI (no EsouiId) but the published manifest is ahead.
+        var a = new InstalledAddon { Version = "1.88", LatestVersion = "1.89", CustomDownloadUrl = "https://x/ShoyrUI.zip" };
+        Assert.False(a.Managed);
+        Assert.True(a.IsCustom);
+        Assert.True(a.UpdateAvailable);
+        Assert.True(a.ShowUpdate);
+    }
+
+    [Fact]
+    public void Custom_addon_no_update_when_versions_match()
+    {
+        var a = new InstalledAddon { Version = "1.89", LatestVersion = "1.89", CustomDownloadUrl = "https://x/ShoyrUI.zip" };
+        Assert.False(a.UpdateAvailable);
+    }
+
+    [Fact]
+    public void Custom_addon_uses_recorded_version_as_baseline()
+    {
+        // installed folder still reads 1.89 but we recorded 1.89 at install; manifest also 1.89 -> no update
+        var a = new InstalledAddon { Version = "1.89", RecordedVersion = "1.89", LatestVersion = "1.89", CustomDownloadUrl = "https://x/ShoyrUI.zip" };
+        Assert.False(a.UpdateAvailable);
+    }
 }

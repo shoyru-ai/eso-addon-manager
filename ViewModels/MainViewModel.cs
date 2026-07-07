@@ -686,6 +686,25 @@ public class MainViewModel : ObservableObject
             p.IsInstalled = inst is not null;
             p.InstalledVersion = inst?.Version ?? "";
         }
+        ApplyMyAddonsToInstalled();
+    }
+
+    /// <summary>Mirror the published manifest onto matching INSTALLED addons, so a custom addon (not on
+    /// ESOUI) surfaces its update on the Installed tab, in the Update-All count, and to Pro auto-update —
+    /// exactly like an ESOUI addon — instead of only being updatable inside the gated Custom Addons tab.</summary>
+    private void ApplyMyAddonsToInstalled()
+    {
+        var changed = false;
+        foreach (var a in Installed)
+        {
+            if (a.Managed) continue;   // ESOUI-managed addons update via the catalog; that takes precedence
+            var pub = MyAddons.FirstOrDefault(p => p.Name.Equals(a.FolderName, StringComparison.OrdinalIgnoreCase));
+            var url = pub?.DownloadUrl ?? "";
+            var ver = pub?.Version ?? "";
+            if (a.CustomDownloadUrl != url) { a.CustomDownloadUrl = url; changed = true; }
+            if (a.LatestVersion != ver) { a.LatestVersion = ver; changed = true; }
+        }
+        if (changed) { RecountUpdates(); InstalledView.Refresh(); }
     }
 
     private async Task InstallMyAddonAsync(PublishedAddon p)
@@ -1100,8 +1119,16 @@ public class MainViewModel : ObservableObject
         {
             addon.Status = Loc.Instance["Status_UpdatingItem"];
             Status = string.Format(Loc.Instance["Status_UpdatingTitle"], addon.Title);
-            await _installer.InstallAsync(addon.EsouiId, AddonsPath);
-            if (_catalogByDir.TryGetValue(addon.FolderName, out var cat)) RecordInstalled(cat, addon.FolderName);
+            if (addon.IsCustom)
+            {
+                await _installer.InstallFromUrlAsync(addon.CustomDownloadUrl, AddonsPath);
+                _state.Set(addon.FolderName, addon.LatestVersion); _state.Save();
+            }
+            else
+            {
+                await _installer.InstallAsync(addon.EsouiId, AddonsPath);
+                if (_catalogByDir.TryGetValue(addon.FolderName, out var cat)) RecordInstalled(cat, addon.FolderName);
+            }
             RescanInstalled();
             if (IsPro) await EnsureDependenciesForAsync(new[] { addon.FolderName });   // auto-deps = Pro
             Status = string.Format(Loc.Instance["Status_UpdatedTitle"], addon.Title);
@@ -1118,8 +1145,16 @@ public class MainViewModel : ObservableObject
             try
             {
                 Status = string.Format(Loc.Instance["Status_UpdatingProgress"], a.Title, done + 1, outdated.Count);
-                await _installer.InstallAsync(a.EsouiId, AddonsPath);
-                if (_catalogByDir.TryGetValue(a.FolderName, out var cat)) RecordInstalled(cat, a.FolderName);
+                if (a.IsCustom)
+                {
+                    await _installer.InstallFromUrlAsync(a.CustomDownloadUrl, AddonsPath);
+                    _state.Set(a.FolderName, a.LatestVersion); _state.Save();
+                }
+                else
+                {
+                    await _installer.InstallAsync(a.EsouiId, AddonsPath);
+                    if (_catalogByDir.TryGetValue(a.FolderName, out var cat)) RecordInstalled(cat, a.FolderName);
+                }
                 done++;
             }
             catch (Exception ex)
