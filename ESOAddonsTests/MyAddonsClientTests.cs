@@ -31,6 +31,25 @@ public class MyAddonsClientTests
         => Assert.Empty(MyAddonsClient.ParseManifest("""{ "author": "x" }"""));
 
     [Fact]
+    public void Tolerates_leading_utf8_bom()
+    {
+        // GitHub can serve the manifest UTF-8-with-BOM; HttpClient.GetStringAsync leaves the BOM (U+FEFF)
+        // in the decoded string and JsonDocument.Parse throws on it -- which silently emptied the custom
+        // addons list. Parsing must strip it. ((char)0xFEFF keeps this source file pure ASCII.)
+        var json = (char)0xFEFF + """{ "addons": [ { "name": "ShoyrUI", "version": "1.94" } ] }""";
+        var list = MyAddonsClient.ParseManifest(json);
+        Assert.Single(list);
+        Assert.Equal("ShoyrUI", list[0].Name);
+    }
+
+    [Fact]
+    public void Empty_or_whitespace_returns_empty_list()
+    {
+        Assert.Empty(MyAddonsClient.ParseManifest(""));
+        Assert.Empty(MyAddonsClient.ParseManifest("   "));
+    }
+
+    [Fact]
     public void Parses_dependencies_array()
     {
         var json = """

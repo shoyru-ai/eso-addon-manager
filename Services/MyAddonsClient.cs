@@ -29,6 +29,12 @@ public class MyAddonsClient
     public static List<PublishedAddon> ParseManifest(string json)
     {
         var list = new List<PublishedAddon>();
+        if (string.IsNullOrWhiteSpace(json)) return list;
+        // Tolerate a leading UTF-8 BOM (U+FEFF). When GitHub serves the manifest with a charset,
+        // HttpClient.GetStringAsync leaves the BOM in the decoded string and JsonDocument.Parse throws
+        // on it -- which silently emptied the custom-addons list. Strip it, then any stray whitespace.
+        if (json.Length > 0 && (int)json[0] == 0xFEFF) json = json.Substring(1);
+        json = json.TrimStart();
         using var doc = JsonDocument.Parse(json);
         if (doc.RootElement.TryGetProperty("addons", out var arr) && arr.ValueKind == JsonValueKind.Array)
         {
