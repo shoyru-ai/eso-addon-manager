@@ -581,15 +581,7 @@ public class MainViewModel : ObservableObject
             IsBusy = true;
             Status = Loc.Instance["Status_FetchingCatalog"];
             _catalog = await _client.GetCatalogAsync(refreshCatalog);
-            _catalogByDir = new Dictionary<string, EsouiAddon>(StringComparer.OrdinalIgnoreCase);
-            _catalogById = new Dictionary<string, EsouiAddon>();
-            foreach (var c in _catalog)
-            {
-                _catalogById[c.Id] = c;                            // for mapping AI-find results back to catalog entries
-                foreach (var dir in c.Dirs)
-                    if (!_catalogByDir.TryGetValue(dir, out var existing) || c.Downloads > existing.Downloads)
-                        _catalogByDir[dir] = c;
-            }
+            RebuildCatalogIndex();
 
             RescanInstalled();
 
@@ -615,6 +607,32 @@ public class MainViewModel : ObservableObject
         }
         catch (Exception ex) { Status = string.Format(Loc.Instance["Status_Error"], ex.Message); }
         finally { IsBusy = false; }
+    }
+
+    /// <summary>Indexes the catalog by ESOUI id and by addon dir (keeping the most-downloaded on a dir clash),
+    /// so installed addons can be matched to their latest catalog entry.</summary>
+    private void RebuildCatalogIndex()
+    {
+        _catalogByDir = new Dictionary<string, EsouiAddon>(StringComparer.OrdinalIgnoreCase);
+        _catalogById = new Dictionary<string, EsouiAddon>();
+        foreach (var c in _catalog)
+        {
+            _catalogById[c.Id] = c;                            // for mapping AI-find results back to catalog entries
+            foreach (var dir in c.Dirs)
+                if (!_catalogByDir.TryGetValue(dir, out var existing) || c.Downloads > existing.Downloads)
+                    _catalogByDir[dir] = c;
+        }
+    }
+
+    /// <summary>Re-pulls the live ESOUI catalog and Shoyru's published manifest and recomputes update state,
+    /// so an update run always targets the freshest versions instead of the launch-time snapshot. Best-effort:
+    /// on a network failure it leaves the existing catalog in place and the update proceeds against that.</summary>
+    private async Task RefreshCatalogAsync()
+    {
+        _catalog = await _client.GetCatalogAsync(refresh: true);
+        RebuildCatalogIndex();
+        RescanInstalled();                 // recompute UpdateAvailable / UpdateCount against the fresh catalog
+        await LoadMyAddonsAsync();          // custom addons' "latest" comes from the published manifest, not ESOUI
     }
 
     private void RescanInstalled()
@@ -1138,6 +1156,10 @@ public class MainViewModel : ObservableObject
 
     private async Task UpdateAllAsync()
     {
+        // Always update against the freshest ESOUI data, not the launch-time snapshot — a version published
+        // mid-session would otherwise be missed. Best-effort: fall back to the loaded catalog on a fetch error.
+        try { await RefreshCatalogAsync(); } catch { /* keep the catalog we already have */ }
+
         var outdated = Installed.Where(a => a.UpdateAvailable).ToList();
         int done = 0;
         foreach (var a in outdated)
